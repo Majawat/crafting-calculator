@@ -306,10 +306,24 @@ function calculate() {
   const totalTime = calculateTotalTime(tree);
 
   const resultsDiv = document.getElementById("results");
-  let html =
-    "<h3>Totals:</h3><ul>" +
+
+  // Show batch info for the main item
+  let html = "";
+  if (tree.crafts > 0) {
+    const excess = tree.qty - tree.requestedQty;
+    html += `<div class="batch-info">
+      <h3>${item}</h3>
+      <p><strong>Requested:</strong> ${tree.requestedQty}</p>
+      <p><strong>Will produce:</strong> ${tree.qty} (${tree.crafts} × ${tree.produces})`;
+    if (excess > 0) {
+      html += ` <span class="excess">+${excess} extra</span>`;
+    }
+    html += `</p></div>`;
+  }
+
+  html += "<h3>Materials Needed:</h3><ul>" +
     Object.entries(flatTotals)
-      .map(([k, v]) => `<li>${v} x ${k}</li>`)
+      .map(([k, v]) => `<li>${v} × ${k}</li>`)
       .join("") +
     "</ul>";
 
@@ -326,7 +340,15 @@ function calculate() {
 function expand(item, qty) {
   const allRecipes = getAllRecipes();
   if (!allRecipes[item]) {
-    return { name: item, qty: qty, children: [], craftingTime: 0 };
+    return {
+      name: item,
+      qty: qty,
+      requestedQty: qty,
+      crafts: 0,
+      produces: 1,
+      children: [],
+      craftingTime: 0
+    };
   }
 
   const recipe = allRecipes[item];
@@ -351,7 +373,15 @@ function expand(item, qty) {
     children.push(expand(ingredientName, need));
   }
 
-  return { name: item, qty: actualQty, children, craftingTime: totalCraftingTime };
+  return {
+    name: item,
+    qty: actualQty,
+    requestedQty: qty,
+    crafts: crafts,
+    produces: produces,
+    children,
+    craftingTime: totalCraftingTime
+  };
 }
 
 // ======= Flatten Tree to Totals =======
@@ -394,7 +424,18 @@ function formatTime(hours) {
 
 // ======= Render Tree View =======
 function renderTree(node) {
-  let html = `<li>${node.qty} x ${node.name}`;
+  let html = `<li>${node.qty} × ${node.name}`;
+
+  // Show batch info for crafted items
+  if (node.crafts > 0) {
+    const excess = node.qty - node.requestedQty;
+    html += ` <span class="craft-info">(${node.crafts} × ${node.produces}`;
+    if (excess > 0) {
+      html += `, +${excess} extra`;
+    }
+    html += `)</span>`;
+  }
+
   if (node.children.length > 0) {
     html += "<ul>";
     node.children.forEach((child) => {

@@ -119,3 +119,31 @@ li {
 .conflict-recipe {
   border-left-color: #f57c00 !important;
 }
+
+.batch-info {
+  background: #3a3a3a;
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  border: 1px solid #555;
+}
+
+.batch-info h3 {
+  margin: 0 0 0.5rem 0;
+  color: #4caf50;
+}
+
+.batch-info p {
+  margin: 0.3rem 0;
+}
+
+.excess {
+  color: #ff9800;
+  font-weight: bold;
+}
+
+.craft-info {
+  font-size: 0.8rem;
+  color: #aaa;
+  font-style: italic;
+}
