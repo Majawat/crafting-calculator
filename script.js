@@ -9,6 +9,7 @@ window.addEventListener("DOMContentLoaded", () => {
   }
   updateCraftDropdown();
   updateIngredientDatalist();
+  updateStoredRecipesList();
   addIngredientField(); // start with one ingredient input
 });
 
@@ -86,6 +87,7 @@ function addRecipe() {
 
   updateCraftDropdown();
   updateIngredientDatalist();
+  updateStoredRecipesList();
 
   // Reset form
   document.getElementById("itemName").value = "";
@@ -126,6 +128,53 @@ function updateIngredientDatalist() {
     option.value = name;
     datalist.appendChild(option);
   });
+}
+
+// ======= Update Stored Recipes List =======
+function updateStoredRecipesList() {
+  const container = document.getElementById("storedRecipes");
+  if (!container) return;
+
+  if (Object.keys(recipes).length === 0) {
+    container.innerHTML = "<p>No recipes stored yet.</p>";
+    return;
+  }
+
+  let html = "<div class='recipes-list'>";
+  for (let name in recipes) {
+    const recipe = recipes[name];
+    const ingredients = Object.entries(recipe.ingredients)
+      .map(([ing, amt]) => `${amt} × ${ing}`)
+      .join(", ");
+
+    html += `
+      <div class="recipe-item">
+        <div class="recipe-info">
+          <strong>${name}</strong> (produces ${recipe.produces})
+          <br><small>Requires: ${ingredients}</small>
+        </div>
+        <button type="button" class="delete-btn" onclick="deleteRecipe('${name}')">Delete</button>
+      </div>
+    `;
+  }
+  html += "</div>";
+  container.innerHTML = html;
+}
+
+// ======= Delete Recipe =======
+function deleteRecipe(recipeName) {
+  if (!confirm(`Are you sure you want to delete the recipe for "${recipeName}"?`)) {
+    return;
+  }
+
+  delete recipes[recipeName];
+  localStorage.setItem("recipes", JSON.stringify(recipes));
+
+  updateCraftDropdown();
+  updateIngredientDatalist();
+  updateStoredRecipesList();
+
+  alert(`Recipe for "${recipeName}" deleted.`);
 }
 
 // ======= Calculate =======
