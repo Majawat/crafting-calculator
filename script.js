@@ -31,6 +31,29 @@ function removeIngredientField(button) {
   button.parentElement.remove();
 }
 
+// ======= Circular Dependency Detection =======
+function hasCircularDependency(itemName, recipeSet, visited = new Set()) {
+  if (visited.has(itemName)) {
+    return true; // Found a cycle
+  }
+
+  const recipe = recipeSet[itemName];
+  if (!recipe) {
+    return false; // Base ingredient, no cycle
+  }
+
+  visited.add(itemName);
+
+  for (let ingredient in recipe.ingredients) {
+    if (hasCircularDependency(ingredient, recipeSet, visited)) {
+      return true;
+    }
+  }
+
+  visited.delete(itemName);
+  return false;
+}
+
 // ======= Add Recipe =======
 function addRecipe() {
   const name = document.getElementById("itemName").value.trim();
@@ -49,6 +72,12 @@ function addRecipe() {
 
   if (!name) return alert("Item name required");
   if (Object.keys(ingredients).length === 0) return alert("At least one ingredient required");
+
+  // Check for circular dependencies before saving
+  const tempRecipes = { ...recipes, [name]: { produces, ingredients } };
+  if (hasCircularDependency(name, tempRecipes)) {
+    return alert(`Cannot save recipe: "${name}" would create a circular dependency`);
+  }
 
   recipes[name] = { produces, ingredients };
   localStorage.setItem("recipes", JSON.stringify(recipes));
