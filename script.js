@@ -1,13 +1,37 @@
+// ======= Recipes Storage =======
 const recipes = {};
 
+// ======= Load recipes from LocalStorage on page load =======
+window.addEventListener("DOMContentLoaded", () => {
+  const saved = localStorage.getItem("recipes");
+  if (saved) {
+    Object.assign(recipes, JSON.parse(saved));
+  }
+  updateCraftDropdown();
+  updateIngredientDatalist();
+  addIngredientField(); // start with one ingredient input
+});
+
+// ======= Add Ingredient Field =======
 function addIngredientField() {
   const container = document.getElementById("ingredients");
   const div = document.createElement("div");
   div.classList.add("ingredient");
-  div.innerHTML = `<input type="text" placeholder="Ingredient name"> <input type="number" placeholder="Amount" min="1" value="1">`;
+  div.innerHTML = `
+    <input list="ingredientList" placeholder="Ingredient name" class="ingredient-name">
+    <input type="number" placeholder="Amount" min="1" value="1">
+    <button type="button" onclick="removeIngredientField(this)">×</button>
+  `;
   container.appendChild(div);
+  updateIngredientDatalist();
 }
 
+// Remove ingredient field button
+function removeIngredientField(button) {
+  button.parentElement.remove();
+}
+
+// ======= Add Recipe =======
 function addRecipe() {
   const name = document.getElementById("itemName").value.trim();
   const produces = parseInt(document.getElementById("produces").value, 10);
@@ -27,34 +51,58 @@ function addRecipe() {
   if (Object.keys(ingredients).length === 0) return alert("At least one ingredient required");
 
   recipes[name] = { produces, ingredients };
+  localStorage.setItem("recipes", JSON.stringify(recipes));
   alert(`Recipe for ${name} saved!`);
   console.log(`Recipe for ${name} saved!`, produces, ingredients);
-  localStorage.setItem("recipes", JSON.stringify(recipes));
 
-  const saved = localStorage.getItem("recipes");
-  if (saved) {
-    Object.assign(recipes, JSON.parse(saved));
-  }
+  updateCraftDropdown();
+  updateIngredientDatalist();
 
-  // Add to craftItem dropdown
+  // Reset form
+  document.getElementById("itemName").value = "";
+  document.getElementById("produces").value = 1;
+  document.getElementById("ingredients").innerHTML = "<h3>Ingredients</h3>";
+  addIngredientField();
+}
+
+// ======= Update Craft Dropdown =======
+function updateCraftDropdown() {
   const select = document.getElementById("craftItem");
-  const optionExists = Array.from(select.options).some((opt) => opt.value === name);
-  if (!optionExists) {
+  if (!select) return;
+  select.innerHTML = '<option value="" disabled selected>Select an item</option>';
+  for (let name in recipes) {
     const option = document.createElement("option");
     option.value = name;
     option.textContent = name;
     select.appendChild(option);
   }
-
-  // Reset form
-  document.getElementById("itemName").value = "";
-  document.getElementById("produces").value = 1;
-  document.getElementById("ingredients").innerHTML =
-    '<h3>Ingredients</h3><div class="ingredient"><input type="text" placeholder="Ingredient name"><input type="number" placeholder="Amount" min="1" value="1"></div>';
 }
 
+// ======= Update Ingredient Datalist =======
+function updateIngredientDatalist() {
+  const datalist = document.getElementById("ingredientList");
+  if (!datalist) return;
+  datalist.innerHTML = ""; // clear existing options
+
+  const ingredientsSet = new Set();
+  for (let recipeName in recipes) {
+    const recipe = recipes[recipeName];
+    for (let ing in recipe.ingredients) {
+      ingredientsSet.add(ing);
+    }
+  }
+
+  ingredientsSet.forEach((name) => {
+    const option = document.createElement("option");
+    option.value = name;
+    datalist.appendChild(option);
+  });
+}
+
+// ======= Calculate =======
 function calculate() {
-  const item = document.getElementById("craftItem").value.trim();
+  const itemSelect = document.getElementById("craftItem");
+  const item = itemSelect.value.trim();
   const qty = parseInt(document.getElementById("craftQty").value, 10);
   if (!item || qty < 1) return;
 
@@ -72,25 +120,26 @@ function calculate() {
     "</ul>";
 }
 
+// ======= Expand Recipes Recursively =======
 function expand(item, qty) {
   if (!recipes[item]) {
-    // Base material
     return { name: item, qty: qty, children: [] };
   }
 
   const { produces, ingredients } = recipes[item];
-  const crafts = Math.ceil(qty / produces); // how many times we must craft this
-  const actualQty = crafts * produces; // actual produced qty (could overshoot)
+  const crafts = Math.ceil(qty / produces);
+  const actualQty = crafts * produces;
 
   const children = [];
   for (let ing in ingredients) {
-    const need = ingredients[ing] * crafts; // total ingredient requirement
+    const need = ingredients[ing] * crafts;
     children.push(expand(ing, need));
   }
 
   return { name: item, qty: actualQty, children };
 }
 
+// ======= Flatten Tree to Totals =======
 function flatten(node, totals = {}) {
   if (node.children.length === 0) {
     totals[node.name] = (totals[node.name] || 0) + node.qty;
@@ -100,6 +149,7 @@ function flatten(node, totals = {}) {
   return totals;
 }
 
+// ======= Render Tree View =======
 function renderTree(node) {
   let html = `<li>${node.qty} × ${node.name}`;
   if (node.children.length > 0) {

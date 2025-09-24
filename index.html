@@ -20,7 +20,10 @@
       <div id="ingredients">
         <h3>Ingredients</h3>
         <div class="ingredient">
-          <input type="text" placeholder="Ingredient name" />
+          <input list="ingredientList" placeholder="Ingredient name" class="ingredient-name" />
+          <datalist id="ingredientList">
+            <!-- Options added dynamically -->
+          </datalist>
           <input type="number" placeholder="Amount" min="1" value="1" />
         </div>
       </div>
