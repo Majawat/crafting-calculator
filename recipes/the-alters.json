@@ -5,7 +5,7 @@
     "description": "Recipe data for The Alters crafting system"
   },
   "recipes": {
-    "Polymers": {
+    "Polymers Package": {
       "produces": 10,
       "ingredients": {
         "Organics": 20,
@@ -36,7 +36,7 @@
       "produces": 1,
       "ingredients": {
         "Metals": 20,
-        "Polymers": 20
+        "Polymers Package": 20
       },
       "metadata": {
         "type": "Base",

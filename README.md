@@ -15,15 +15,14 @@ This project runs entirely client‑side (HTML, CSS, JavaScript) — no backend,
 
 ## Usage
 
-1. Clone or fork this repo.
-2. Open `index.html` in a browser.
-3. Add recipes using the form.
-4. Enter the item you want to craft and the quantity.
-5. View required base resources and the breakdown.
+1. Access this site at https://majawat.github.io/crafting-calculator/ or clone the repo and run the index.html file
+2. Add recipes using the form.
+3. Enter the item you want to craft and the quantity.
+4. View required base resources and the breakdown.
 
 ## Example Recipe (The Alters)
 
-* **Polymers** → produces 10 from 20 Organics + 20 Minerals
+* **Polymers Package** → produces 10 from 20 Organics + 20 Minerals
 * **Bridge Anchor** → produces 1 from 20 Metals + 20 Polymers
 
 Crafting 4 Bridge Anchors → requires **80 Metals, 160 Organics, 160 Minerals**.
