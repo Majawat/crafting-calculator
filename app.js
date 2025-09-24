@@ -2,29 +2,58 @@
 const recipes = {};
 const gameRecipes = {};
 let currentGame = null;
+let ingredientCount = 0;
 
 // ======= Load recipes from LocalStorage on page load =======
 window.addEventListener("DOMContentLoaded", () => {
-  const saved = localStorage.getItem("recipes");
-  if (saved) {
-    Object.assign(recipes, JSON.parse(saved));
+  const savedRecipes = localStorage.getItem("recipes");
+  if (savedRecipes) {
+    Object.assign(recipes, JSON.parse(savedRecipes));
   }
+  const savedGame = localStorage.getItem("currentGame");
+  if (savedGame) {
+    currentGame = savedGame;
+    document.getElementById("gameSelect").value = currentGame;
+    loadGameRecipes();
+  }
+
   updateCraftDropdown();
   updateIngredientDatalist();
   updateStoredRecipesList();
   addIngredientField(); // start with one ingredient input
 });
 
-// ======= Add Ingredient Field =======
 function addIngredientField() {
   const container = document.getElementById("ingredients");
   const div = document.createElement("div");
   div.classList.add("ingredient");
+
+  // Build the inner HTML, conditionally adding delete button
   div.innerHTML = `
-    <input list="ingredientList" placeholder="Ingredient name" class="ingredient-name">
-    <input type="number" placeholder="Amount" min="1" value="1">
-    <button type="button" class="delete-btn" onclick="removeIngredientField(this)">x</button>
+    <input 
+      type="number" 
+      placeholder="Amount" 
+      min="1" 
+      value="1" 
+      class="ingredient-amount"
+      name="ingredientAmount_${ingredientCount}" 
+      id="ingredientAmount_${ingredientCount}"
+    >
+    <input 
+      list="ingredientList" 
+      placeholder="Ingredient name" 
+      class="ingredient-name" 
+      name="ingredientName_${ingredientCount}" 
+      id="ingredientName_${ingredientCount}"
+    >
+    ${
+      container.children.length > 0
+        ? `<button type="button" class="delete-btn" onclick="removeIngredientField(this)">x</button>`
+        : ""
+    }
   `;
+
+  ingredientCount++; // increment each time we add one
   container.appendChild(div);
   updateIngredientDatalist();
 }
@@ -65,15 +94,17 @@ function addRecipe() {
   const ingredients = {};
 
   ingredientDivs.forEach((div) => {
-    const inputs = div.querySelectorAll("input");
-    const ingName = inputs[0].value.trim();
-    const ingAmt = parseInt(inputs[1].value, 10);
+    const ingName = div.querySelector(".ingredient-name").value.trim();
+    const ingAmt = parseInt(div.querySelector(".ingredient-amount").value, 10);
     if (ingName && ingAmt > 0) {
       ingredients[ingName] = ingAmt;
     }
   });
 
-  if (!name) return alert("Item name required");
+  if (!name) {
+    document.getElementById("itemName").focus();
+    return alert("Item name required");
+  }
   if (Object.keys(ingredients).length === 0) return alert("At least one ingredient required");
 
   // Check for circular dependencies before saving
@@ -186,8 +217,9 @@ function updateStoredRecipesList() {
       html += `
         <div class="recipe-item custom-recipe ${hasConflict ? "conflict-recipe" : ""}">
           <div class="recipe-info">
-            <strong>${displayName}</strong> (produces ${recipe.produces})
-            <br><small>Requires: ${ingredients}</small>
+            <strong>${displayName}</strong> (produces ${recipe.produces}) <br /><small
+              >Requires: ${ingredients}</small
+            >
           </div>
           <button type="button" class="delete-btn" onclick="deleteRecipe('${name}')">Delete</button>
         </div>
@@ -224,6 +256,7 @@ async function loadGameRecipes() {
   if (!selectedGame) {
     // Clear game recipes and use only custom recipes
     Object.keys(gameRecipes).forEach((key) => delete gameRecipes[key]);
+    localStorage.removeItem("currentGame");
     currentGame = null;
     statusDiv.innerHTML = "<small>Custom recipes only</small>";
     updateAllUI();
@@ -257,6 +290,8 @@ async function loadGameRecipes() {
     statusDiv.innerHTML = `<small>Loaded ${Object.keys(gameRecipes).length} recipes from ${
       gameData.gameInfo.name
     }</small>`;
+    localStorage.setItem("currentGame", currentGame);
+
     updateAllUI();
   } catch (error) {
     statusDiv.innerHTML = `<small style="color: red;">Error loading recipes: ${error.message}</small>`;
@@ -321,7 +356,8 @@ function calculate() {
     html += `</p></div>`;
   }
 
-  html += "<h3>Materials Needed:</h3><ul>" +
+  html +=
+    "<h3>Materials Needed:</h3><ul>" +
     Object.entries(flatTotals)
       .map(([k, v]) => `<li>${v} × ${k}</li>`)
       .join("") +
@@ -347,7 +383,7 @@ function expand(item, qty) {
       crafts: 0,
       produces: 1,
       children: [],
-      craftingTime: 0
+      craftingTime: 0,
     };
   }
 
@@ -380,7 +416,7 @@ function expand(item, qty) {
     crafts: crafts,
     produces: produces,
     children,
-    craftingTime: totalCraftingTime
+    craftingTime: totalCraftingTime,
   };
 }
 

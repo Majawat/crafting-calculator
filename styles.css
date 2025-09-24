@@ -29,6 +29,9 @@ select {
   background: #404040;
   color: #e0e0e0;
 }
+input[type="number"] {
+  max-width: 3rem;
+}
 
 input:focus,
 select:focus {
