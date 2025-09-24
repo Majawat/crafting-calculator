@@ -1,0 +1,16 @@
+# Node/npm artifacts (in case you add tooling later)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build output (if you ever add bundlers)
+dist/
+build/
+
+# OS / Editor junk
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
