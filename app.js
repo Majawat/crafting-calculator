@@ -212,7 +212,7 @@ function deleteRecipe(recipeName) {
   updateIngredientDatalist();
   updateStoredRecipesList();
 
-  alert(`Recipe for "${recipeName}" deleted.`);
+  console.log(`Recipe for "${recipeName}" deleted.`);
 }
 
 // ======= Load Game Recipes =======
