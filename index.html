@@ -9,6 +9,17 @@
   <body>
     <h1>Generic Crafting Calculator</h1>
 
+    <div class="card" id="gameSelectCard">
+      <h2>Game Selection</h2>
+      <label for="gameSelect">Load Recipe Pack:</label>
+      <select id="gameSelect">
+        <option value="">Custom Recipes Only</option>
+        <option value="the-alters">The Alters</option>
+      </select>
+      <button type="button" onclick="loadGameRecipes()">Load Recipes</button>
+      <div id="gameStatus"></div>
+    </div>
+
     <div class="card" id="addRecipeCard">
       <h2>Add Recipe</h2>
       <label for="itemName">Item Name:</label>
@@ -41,15 +52,14 @@
       <button type="button" onclick="calculate()">Calculate</button>
     </div>
 
-    <div class="card" id="storedRecipesCard">
-      <h2>Stored Recipes</h2>
-      <div id="storedRecipes"></div>
-    </div>
-
     <div class="card" id="resultsCard">
       <h2>Results</h2>
       <div id="results"></div>
     </div>
+    <div class="card" id="storedRecipesCard">
+      <h2>Stored Recipes</h2>
+      <div id="storedRecipes"></div>
+    </div>
+    <script src="script.js" defer></script>
   </body>
-  <script src="script.js" defer></script>
 </html>

@@ -1,0 +1,50 @@
+{
+  "gameInfo": {
+    "name": "The Alters",
+    "version": "1.0",
+    "description": "Recipe data for The Alters crafting system"
+  },
+  "recipes": {
+    "Polymers": {
+      "produces": 10,
+      "ingredients": {
+        "Organics": 20,
+        "Minerals": 20
+      },
+      "metadata": {
+        "type": "Resource",
+        "description": "A material required to craft bridge anchors",
+        "weight": 1.0,
+        "craftingTime": 2.0,
+        "station": "Refinery"
+      }
+    },
+    "Mush": {
+      "produces": 1,
+      "ingredients": {
+        "Organics": 5
+      },
+      "metadata": {
+        "type": "Food",
+        "description": "The most basic type of food made of Organics.",
+        "weight": 4,
+        "craftingTime": 0.5,
+        "station": "Kitchen"
+      }
+    },
+    "Bridge Anchor": {
+      "produces": 1,
+      "ingredients": {
+        "Metals": 20,
+        "Polymers": 20
+      },
+      "metadata": {
+        "type": "Base",
+        "description": "Place it on a marked spot by the lava river to create bridge support",
+        "weight": 40.0,
+        "craftingTime": 3.0,
+        "station": "Workshop"
+      }
+    }
+  }
+}

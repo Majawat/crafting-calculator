@@ -1,5 +1,7 @@
 // ======= Recipes Storage =======
 const recipes = {};
+const gameRecipes = {};
+let currentGame = null;
 
 // ======= Load recipes from LocalStorage on page load =======
 window.addEventListener("DOMContentLoaded", () => {
@@ -75,7 +77,7 @@ function addRecipe() {
   if (Object.keys(ingredients).length === 0) return alert("At least one ingredient required");
 
   // Check for circular dependencies before saving
-  const tempRecipes = { ...recipes, [name]: { produces, ingredients } };
+  const tempRecipes = { ...getAllRecipes(), [name]: { produces, ingredients } };
   if (hasCircularDependency(name, tempRecipes)) {
     return alert(`Cannot save recipe: "${name}" would create a circular dependency`);
   }
@@ -100,7 +102,9 @@ function updateCraftDropdown() {
   const select = document.getElementById("craftItem");
   if (!select) return;
   select.innerHTML = '<option value="" disabled selected>Select an item</option>';
-  for (let name in recipes) {
+
+  const allRecipes = getAllRecipes();
+  for (let name in allRecipes) {
     const option = document.createElement("option");
     option.value = name;
     option.textContent = name;
@@ -115,8 +119,9 @@ function updateIngredientDatalist() {
   datalist.innerHTML = ""; // clear existing options
 
   const ingredientsSet = new Set();
-  for (let recipeName in recipes) {
-    const recipe = recipes[recipeName];
+  const allRecipes = getAllRecipes();
+  for (let recipeName in allRecipes) {
+    const recipe = allRecipes[recipeName];
     for (let ing in recipe.ingredients) {
       ingredientsSet.add(ing);
     }
@@ -134,29 +139,62 @@ function updateStoredRecipesList() {
   const container = document.getElementById("storedRecipes");
   if (!container) return;
 
-  console.debug(Object.keys(recipes).length + " recipes stored.");
-  if (Object.keys(recipes).length === 0) {
-    container.innerHTML = "<p>No recipes stored yet.</p>";
+  const allRecipes = getAllRecipes();
+  const customCount = Object.keys(recipes).length;
+  const gameCount = Object.keys(gameRecipes).length;
+
+  if (Object.keys(allRecipes).length === 0) {
+    container.innerHTML = "<p>No recipes available.</p>";
     return;
   }
 
   let html = "<div class='recipes-list'>";
-  for (let name in recipes) {
-    const recipe = recipes[name];
-    const ingredients = Object.entries(recipe.ingredients)
-      .map(([ing, amt]) => `${amt} x ${ing}`)
-      .join(", ");
 
-    html += `
-      <div class="recipe-item">
-        <div class="recipe-info">
-          <strong>${name}</strong> (produces ${recipe.produces})
-          <br><small>Requires: ${ingredients}</small>
+  // Show game recipes first (if any)
+  if (gameCount > 0) {
+    html += `<h4>Game Recipes (${gameCount})</h4>`;
+    for (let name in gameRecipes) {
+      const recipe = gameRecipes[name];
+      const ingredients = Object.entries(recipe.ingredients)
+        .map(([ing, amt]) => `${amt} x ${ing}`)
+        .join(", ");
+
+      html += `
+        <div class="recipe-item game-recipe">
+          <div class="recipe-info">
+            <strong>${name}</strong> (produces ${recipe.produces})
+            <br><small>Requires: ${ingredients}</small>
+          </div>
+          <span class="recipe-source">Game</span>
         </div>
-        <button type="button" class="delete-btn" onclick="deleteRecipe('${name}')">Delete</button>
-      </div>
-    `;
+      `;
+    }
   }
+
+  // Show custom recipes
+  if (customCount > 0) {
+    html += `<h4>Custom Recipes (${customCount})</h4>`;
+    for (let name in recipes) {
+      const recipe = recipes[name];
+      const ingredients = Object.entries(recipe.ingredients)
+        .map(([ing, amt]) => `${amt} x ${ing}`)
+        .join(", ");
+
+      const displayName = gameRecipes[name] ? `${name} (Custom)` : name;
+      const hasConflict = gameRecipes[name];
+
+      html += `
+        <div class="recipe-item custom-recipe ${hasConflict ? "conflict-recipe" : ""}">
+          <div class="recipe-info">
+            <strong>${displayName}</strong> (produces ${recipe.produces})
+            <br><small>Requires: ${ingredients}</small>
+          </div>
+          <button type="button" class="delete-btn" onclick="deleteRecipe('${name}')">Delete</button>
+        </div>
+      `;
+    }
+  }
+
   html += "</div>";
   container.innerHTML = html;
 }
@@ -177,6 +215,85 @@ function deleteRecipe(recipeName) {
   alert(`Recipe for "${recipeName}" deleted.`);
 }
 
+// ======= Load Game Recipes =======
+async function loadGameRecipes() {
+  const gameSelect = document.getElementById("gameSelect");
+  const statusDiv = document.getElementById("gameStatus");
+  const selectedGame = gameSelect.value;
+
+  if (!selectedGame) {
+    // Clear game recipes and use only custom recipes
+    Object.keys(gameRecipes).forEach((key) => delete gameRecipes[key]);
+    currentGame = null;
+    statusDiv.innerHTML = "<small>Custom recipes only</small>";
+    updateAllUI();
+    return;
+  }
+
+  try {
+    statusDiv.innerHTML = "<small>Loading...</small>";
+    const response = await fetch(`recipes/${selectedGame}.json`);
+
+    if (!response.ok) {
+      throw new Error(`Failed to load: ${response.status}`);
+    }
+
+    const gameData = await response.json();
+
+    // Clear existing game recipes and load new ones
+    Object.keys(gameRecipes).forEach((key) => delete gameRecipes[key]);
+
+    // Load game recipes (convert metadata-format to calculator-format)
+    for (let [name, recipe] of Object.entries(gameData.recipes)) {
+      gameRecipes[name] = {
+        produces: recipe.produces,
+        ingredients: recipe.ingredients,
+        metadata: recipe.metadata || {},
+        isGameRecipe: true,
+      };
+    }
+
+    currentGame = selectedGame;
+    statusDiv.innerHTML = `<small>Loaded ${Object.keys(gameRecipes).length} recipes from ${
+      gameData.gameInfo.name
+    }</small>`;
+    updateAllUI();
+  } catch (error) {
+    statusDiv.innerHTML = `<small style="color: red;">Error loading recipes: ${error.message}</small>`;
+    console.error("Failed to load game recipes:", error);
+  }
+}
+
+// ======= Update All UI Elements =======
+function updateAllUI() {
+  updateCraftDropdown();
+  updateIngredientDatalist();
+  updateStoredRecipesList();
+}
+
+// ======= Get All Recipes (Combined) =======
+function getAllRecipes() {
+  const combined = {};
+
+  // Add game recipes first
+  for (let [name, recipe] of Object.entries(gameRecipes)) {
+    combined[name] = recipe;
+  }
+
+  // Add custom recipes, handling conflicts with suffix
+  for (let [name, recipe] of Object.entries(recipes)) {
+    if (gameRecipes[name]) {
+      // Conflict: add custom version with suffix
+      combined[`${name} (Custom)`] = recipe;
+    } else {
+      // No conflict: add as-is
+      combined[name] = recipe;
+    }
+  }
+
+  return combined;
+}
+
 // ======= Calculate =======
 function calculate() {
   const itemSelect = document.getElementById("craftItem");
@@ -186,35 +303,55 @@ function calculate() {
 
   const tree = expand(item, qty);
   const flatTotals = flatten(tree);
+  const totalTime = calculateTotalTime(tree);
 
   const resultsDiv = document.getElementById("results");
-  resultsDiv.innerHTML =
+  let html =
     "<h3>Totals:</h3><ul>" +
     Object.entries(flatTotals)
       .map(([k, v]) => `<li>${v} x ${k}</li>`)
       .join("") +
-    "</ul><h3>Breakdown:</h3><ul>" +
-    renderTree(tree) +
     "</ul>";
+
+  // Add total time if any recipes have time data
+  if (totalTime > 0) {
+    html += `<p><strong>Crafting Time:</strong> ${formatTime(totalTime)}</p>`;
+  }
+
+  html += "<h3>Breakdown:</h3><ul>" + renderTree(tree) + "</ul>";
+  resultsDiv.innerHTML = html;
 }
 
 // ======= Expand Recipes Recursively =======
 function expand(item, qty) {
-  if (!recipes[item]) {
-    return { name: item, qty: qty, children: [] };
+  const allRecipes = getAllRecipes();
+  if (!allRecipes[item]) {
+    return { name: item, qty: qty, children: [], craftingTime: 0 };
   }
 
-  const { produces, ingredients } = recipes[item];
+  const recipe = allRecipes[item];
+  const { produces, ingredients } = recipe;
   const crafts = Math.ceil(qty / produces);
   const actualQty = crafts * produces;
+
+  // Get crafting time from metadata (defaults to 0 if not specified)
+  const baseTime = recipe.metadata?.craftingTime || 0;
+  const totalCraftingTime = baseTime * crafts;
 
   const children = [];
   for (let ing in ingredients) {
     const need = ingredients[ing] * crafts;
-    children.push(expand(ing, need));
+    // When expanding ingredients, check if we need to use the prefixed version
+    let ingredientName = ing;
+    if (gameRecipes[ing] && recipes[ing]) {
+      // Both versions exist - prefer the game version for sub-recipes
+      // (user explicitly chose the custom version only if they selected it from dropdown)
+      ingredientName = ing; // Use game version
+    }
+    children.push(expand(ingredientName, need));
   }
 
-  return { name: item, qty: actualQty, children };
+  return { name: item, qty: actualQty, children, craftingTime: totalCraftingTime };
 }
 
 // ======= Flatten Tree to Totals =======
@@ -225,6 +362,34 @@ function flatten(node, totals = {}) {
     node.children.forEach((child) => flatten(child, totals));
   }
   return totals;
+}
+
+// ======= Calculate Total Time =======
+function calculateTotalTime(node) {
+  let totalTime = node.craftingTime || 0;
+
+  // Add time from children (this assumes sequential crafting)
+  for (let child of node.children) {
+    totalTime += calculateTotalTime(child);
+  }
+
+  return totalTime;
+}
+
+// ======= Format Time Display =======
+function formatTime(hours) {
+  if (hours === 0) return "instant";
+
+  const wholeHours = Math.floor(hours);
+  const minutes = Math.round((hours - wholeHours) * 60);
+
+  if (wholeHours === 0) {
+    return `${minutes} min`;
+  } else if (minutes === 0) {
+    return `${wholeHours}h`;
+  } else {
+    return `${wholeHours}h ${minutes}m`;
+  }
 }
 
 // ======= Render Tree View =======

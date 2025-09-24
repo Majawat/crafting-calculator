@@ -80,3 +80,32 @@ li {
 .delete-btn:hover {
   background: #d32f2f;
 }
+
+.game-recipe {
+  border-left: 4px solid #2196f3;
+}
+
+.custom-recipe {
+  border-left: 4px solid #4caf50;
+}
+
+.recipe-source {
+  font-size: 0.7rem;
+  color: #666;
+  font-style: italic;
+  padding: 0.2rem 0.4rem;
+  background: #f0f0f0;
+  border-radius: 3px;
+}
+
+#gameStatus {
+  margin-top: 0.5rem;
+}
+
+#gameStatus small {
+  color: #666;
+}
+
+.conflict-recipe {
+  border-left-color: #f57c00 !important;
+}
