@@ -21,7 +21,7 @@ function addIngredientField() {
   div.innerHTML = `
     <input list="ingredientList" placeholder="Ingredient name" class="ingredient-name">
     <input type="number" placeholder="Amount" min="1" value="1">
-    <button type="button" onclick="removeIngredientField(this)">×</button>
+    <button type="button" class="delete-btn" onclick="removeIngredientField(this)">x</button>
   `;
   container.appendChild(div);
   updateIngredientDatalist();
@@ -82,7 +82,6 @@ function addRecipe() {
 
   recipes[name] = { produces, ingredients };
   localStorage.setItem("recipes", JSON.stringify(recipes));
-  alert(`Recipe for ${name} saved!`);
   console.log(`Recipe for ${name} saved!`, produces, ingredients);
 
   updateCraftDropdown();
@@ -135,6 +134,7 @@ function updateStoredRecipesList() {
   const container = document.getElementById("storedRecipes");
   if (!container) return;
 
+  console.debug(Object.keys(recipes).length + " recipes stored.");
   if (Object.keys(recipes).length === 0) {
     container.innerHTML = "<p>No recipes stored yet.</p>";
     return;
@@ -144,7 +144,7 @@ function updateStoredRecipesList() {
   for (let name in recipes) {
     const recipe = recipes[name];
     const ingredients = Object.entries(recipe.ingredients)
-      .map(([ing, amt]) => `${amt} × ${ing}`)
+      .map(([ing, amt]) => `${amt} x ${ing}`)
       .join(", ");
 
     html += `
@@ -191,7 +191,7 @@ function calculate() {
   resultsDiv.innerHTML =
     "<h3>Totals:</h3><ul>" +
     Object.entries(flatTotals)
-      .map(([k, v]) => `<li>${v} × ${k}</li>`)
+      .map(([k, v]) => `<li>${v} x ${k}</li>`)
       .join("") +
     "</ul><h3>Breakdown:</h3><ul>" +
     renderTree(tree) +
@@ -229,7 +229,7 @@ function flatten(node, totals = {}) {
 
 // ======= Render Tree View =======
 function renderTree(node) {
-  let html = `<li>${node.qty} × ${node.name}`;
+  let html = `<li>${node.qty} x ${node.name}`;
   if (node.children.length > 0) {
     html += "<ul>";
     node.children.forEach((child) => {

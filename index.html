@@ -5,12 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Generic Crafting Calculator</title>
     <link rel="stylesheet" href="styles.css" />
-    <script src="script.js" defer></script>
   </head>
   <body>
     <h1>Generic Crafting Calculator</h1>
 
-    <div class="card">
+    <div class="card" id="addRecipeCard">
       <h2>Add Recipe</h2>
       <label for="itemName">Item Name:</label>
       <input type="text" id="itemName" />
@@ -30,7 +29,7 @@
       <button type="button" onclick="addRecipe()">Save Recipe</button>
     </div>
 
-    <div class="card">
+    <div class="card" id="craftCard">
       <h2>Craft</h2>
       <label for="craftItem">Item:</label>
       <select id="craftItem">
@@ -42,14 +41,15 @@
       <button type="button" onclick="calculate()">Calculate</button>
     </div>
 
-    <div class="card">
+    <div class="card" id="storedRecipesCard">
       <h2>Stored Recipes</h2>
       <div id="storedRecipes"></div>
     </div>
 
-    <div class="card">
+    <div class="card" id="resultsCard">
       <h2>Results</h2>
       <div id="results"></div>
     </div>
   </body>
+  <script src="script.js" defer></script>
 </html>
