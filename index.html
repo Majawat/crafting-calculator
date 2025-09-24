@@ -14,21 +14,20 @@
       <h2>Add Recipe</h2>
       <label for="itemName">Item Name:</label>
       <input type="text" id="itemName" />
+
       <label for="produces">Produces (quantity):</label>
       <input type="number" id="produces" value="1" min="1" />
 
       <div id="ingredients">
         <h3>Ingredients</h3>
-        <div class="ingredient">
-          <input list="ingredientList" placeholder="Ingredient name" class="ingredient-name" />
-          <datalist id="ingredientList">
-            <!-- Options added dynamically -->
-          </datalist>
-          <input type="number" placeholder="Amount" min="1" value="1" />
-        </div>
+        <!-- JS will populate first ingredient field -->
       </div>
+
+      <!-- shared datalist for all ingredient inputs -->
+      <datalist id="ingredientList"></datalist>
+
       <button type="button" onclick="addIngredientField()">+ Add Ingredient</button>
-      <button type="submit" onclick="addRecipe()">Save Recipe</button>
+      <button type="button" onclick="addRecipe()">Save Recipe</button>
     </div>
 
     <div class="card">
@@ -37,9 +36,10 @@
       <select id="craftItem">
         <option value="" disabled selected>Select an item</option>
       </select>
+
       <label for="craftQty">Quantity:</label>
       <input type="number" id="craftQty" value="1" min="1" />
-      <button type="submit" onclick="calculate()">Calculate</button>
+      <button type="button" onclick="calculate()">Calculate</button>
     </div>
 
     <div class="card">
