@@ -19,6 +19,51 @@
         "station": "Refinery"
       }
     },
+    "Raw Food": {
+      "variants": [
+        {
+          "name": "Single (Greenhouse)",
+          "produces": 1,
+          "ingredients": {
+            "Organics": 10
+          },
+          "metadata": {
+            "type": "Food",
+            "description": "Used to prepare high-quality meals in the Kitchen.",
+            "weight": 40.0,
+            "craftingTime": 1.0,
+            "station": "Greenhouse"
+          }
+        },
+        {
+          "name": "Package (Plantation)",
+          "produces": 10,
+          "ingredients": {
+            "Organics": 50
+          },
+          "metadata": {
+            "type": "Food",
+            "description": "Used to prepare high-quality meals in the Kitchen. The plantation kit takes more time to grow raw food but uses half as much Organics",
+            "weight": 40.0,
+            "craftingTime": 16,
+            "station": "Greenhouse"
+          }
+        }
+      ]
+    },
+    "Cooked Meal": {
+      "produces": 1,
+      "ingredients": {
+        "Raw Food": 1
+      },
+      "metadata": {
+        "type": "Food",
+        "description": "A properly cooked meal from raw food",
+        "weight": 4,
+        "craftingTime": 0.5,
+        "station": "Kitchen"
+      }
+    },
     "Mush": {
       "produces": 1,
       "ingredients": {

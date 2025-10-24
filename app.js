@@ -3,6 +3,7 @@ const recipes = {};
 const gameRecipes = {};
 let currentGame = null;
 let ingredientCount = 0;
+const variantPreferences = {}; // Stores selected variant index per recipe: { "RecipeName": 0 }
 
 // ======= Load recipes from LocalStorage on page load =======
 window.addEventListener("DOMContentLoaded", () => {
@@ -15,6 +16,10 @@ window.addEventListener("DOMContentLoaded", () => {
     currentGame = savedGame;
     document.getElementById("gameSelect").value = currentGame;
     loadGameRecipes();
+  }
+  const savedPreferences = localStorage.getItem("variantPreferences");
+  if (savedPreferences) {
+    Object.assign(variantPreferences, JSON.parse(savedPreferences));
   }
 
   updateCraftDropdown();
@@ -63,6 +68,40 @@ function removeIngredientField(button) {
   button.parentElement.remove();
 }
 
+// ======= Recipe Variants Helpers =======
+// Normalize a recipe to always have variants array
+function normalizeRecipe(recipe) {
+  if (recipe.variants) {
+    return recipe; // Already in variants format
+  }
+  // Convert old format to variants format
+  return {
+    variants: [
+      {
+        name: "Default",
+        produces: recipe.produces,
+        ingredients: recipe.ingredients,
+        metadata: recipe.metadata || {},
+      },
+    ],
+  };
+}
+
+// Get the selected variant for a recipe
+function getSelectedVariant(recipeName, recipe) {
+  const normalized = normalizeRecipe(recipe);
+  const preferredIndex = variantPreferences[recipeName] || 0;
+  // Ensure index is valid
+  const index = Math.min(preferredIndex, normalized.variants.length - 1);
+  return normalized.variants[index];
+}
+
+// Set the selected variant for a recipe
+function setVariantPreference(recipeName, variantIndex) {
+  variantPreferences[recipeName] = variantIndex;
+  localStorage.setItem("variantPreferences", JSON.stringify(variantPreferences));
+}
+
 // ======= Circular Dependency Detection =======
 function hasCircularDependency(itemName, recipeSet, visited = new Set()) {
   if (visited.has(itemName)) {
@@ -76,9 +115,13 @@ function hasCircularDependency(itemName, recipeSet, visited = new Set()) {
 
   visited.add(itemName);
 
-  for (let ingredient in recipe.ingredients) {
-    if (hasCircularDependency(ingredient, recipeSet, visited)) {
-      return true;
+  // Check all variants for circular dependencies
+  const normalized = normalizeRecipe(recipe);
+  for (let variant of normalized.variants) {
+    for (let ingredient in variant.ingredients) {
+      if (hasCircularDependency(ingredient, recipeSet, visited)) {
+        return true;
+      }
     }
   }
 
@@ -143,6 +186,69 @@ function updateCraftDropdown() {
   }
 }
 
+// ======= Update Variant Selector =======
+function updateVariantSelector() {
+  const itemSelect = document.getElementById("craftItem");
+  const variantContainer = document.getElementById("variantSelector");
+  const variantSelect = document.getElementById("variantSelect");
+
+  if (!itemSelect || !variantContainer || !variantSelect) return;
+
+  const selectedItem = itemSelect.value;
+  if (!selectedItem) {
+    variantContainer.style.display = "none";
+    return;
+  }
+
+  const allRecipes = getAllRecipes();
+  const recipe = allRecipes[selectedItem];
+  if (!recipe) {
+    variantContainer.style.display = "none";
+    return;
+  }
+
+  const normalized = normalizeRecipe(recipe);
+
+  // Only show variant selector if there are multiple variants
+  if (normalized.variants.length <= 1) {
+    variantContainer.style.display = "none";
+    return;
+  }
+
+  // Populate variant options
+  variantSelect.innerHTML = "";
+  const preferredIndex = variantPreferences[selectedItem] || 0;
+
+  normalized.variants.forEach((variant, idx) => {
+    const option = document.createElement("option");
+    option.value = idx;
+    option.textContent = `${variant.name} (${variant.produces}x from ${Object.entries(variant.ingredients)
+      .map(([ing, amt]) => `${amt} ${ing}`)
+      .join(", ")})`;
+    if (idx === preferredIndex) {
+      option.selected = true;
+    }
+    variantSelect.appendChild(option);
+  });
+
+  variantContainer.style.display = "block";
+}
+
+// ======= Save Variant Selection =======
+function saveVariantSelection() {
+  const itemSelect = document.getElementById("craftItem");
+  const variantSelect = document.getElementById("variantSelect");
+
+  if (!itemSelect || !variantSelect) return;
+
+  const selectedItem = itemSelect.value;
+  const selectedVariantIdx = parseInt(variantSelect.value, 10);
+
+  if (selectedItem && !isNaN(selectedVariantIdx)) {
+    setVariantPreference(selectedItem, selectedVariantIdx);
+  }
+}
+
 // ======= Update Ingredient Datalist =======
 function updateIngredientDatalist() {
   const datalist = document.getElementById("ingredientList");
@@ -153,8 +259,13 @@ function updateIngredientDatalist() {
   const allRecipes = getAllRecipes();
   for (let recipeName in allRecipes) {
     const recipe = allRecipes[recipeName];
-    for (let ing in recipe.ingredients) {
-      ingredientsSet.add(ing);
+    const normalized = normalizeRecipe(recipe);
+
+    // Add ingredients from all variants
+    for (let variant of normalized.variants) {
+      for (let ing in variant.ingredients) {
+        ingredientsSet.add(ing);
+      }
     }
   }
 
@@ -186,19 +297,27 @@ function updateStoredRecipesList() {
     html += `<h4>Game Recipes (${gameCount})</h4>`;
     for (let name in gameRecipes) {
       const recipe = gameRecipes[name];
-      const ingredients = Object.entries(recipe.ingredients)
-        .map(([ing, amt]) => `${amt} x ${ing}`)
-        .join(", ");
+      const normalized = normalizeRecipe(recipe);
 
-      html += `
-        <div class="recipe-item game-recipe">
-          <div class="recipe-info">
-            <strong>${name}</strong> (produces ${recipe.produces})
-            <br><small>Requires: ${ingredients}</small>
+      // Show all variants
+      normalized.variants.forEach((variant, idx) => {
+        const ingredients = Object.entries(variant.ingredients)
+          .map(([ing, amt]) => `${amt} x ${ing}`)
+          .join(", ");
+
+        const variantLabel =
+          normalized.variants.length > 1 ? `${name} [${variant.name}]` : name;
+
+        html += `
+          <div class="recipe-item game-recipe">
+            <div class="recipe-info">
+              <strong>${variantLabel}</strong> (produces ${variant.produces})
+              <br><small>Requires: ${ingredients}</small>
+            </div>
+            <span class="recipe-source">Game</span>
           </div>
-          <span class="recipe-source">Game</span>
-        </div>
-      `;
+        `;
+      });
     }
   }
 
@@ -207,23 +326,33 @@ function updateStoredRecipesList() {
     html += `<h4>Custom Recipes (${customCount})</h4>`;
     for (let name in recipes) {
       const recipe = recipes[name];
-      const ingredients = Object.entries(recipe.ingredients)
-        .map(([ing, amt]) => `${amt} x ${ing}`)
-        .join(", ");
+      const normalized = normalizeRecipe(recipe);
 
       const displayName = gameRecipes[name] ? `${name} (Custom)` : name;
       const hasConflict = gameRecipes[name];
 
-      html += `
-        <div class="recipe-item custom-recipe ${hasConflict ? "conflict-recipe" : ""}">
-          <div class="recipe-info">
-            <strong>${displayName}</strong> (produces ${recipe.produces}) <br /><small
-              >Requires: ${ingredients}</small
-            >
+      // Show all variants
+      normalized.variants.forEach((variant, idx) => {
+        const ingredients = Object.entries(variant.ingredients)
+          .map(([ing, amt]) => `${amt} x ${ing}`)
+          .join(", ");
+
+        const variantLabel =
+          normalized.variants.length > 1
+            ? `${displayName} [${variant.name}]`
+            : displayName;
+
+        html += `
+          <div class="recipe-item custom-recipe ${hasConflict ? "conflict-recipe" : ""}">
+            <div class="recipe-info">
+              <strong>${variantLabel}</strong> (produces ${variant.produces}) <br /><small
+                >Requires: ${ingredients}</small
+              >
+            </div>
+            <button type="button" class="delete-btn" onclick="deleteRecipe('${name}')">Delete</button>
           </div>
-          <button type="button" class="delete-btn" onclick="deleteRecipe('${name}')">Delete</button>
-        </div>
-      `;
+        `;
+      });
     }
   }
 
@@ -276,14 +405,23 @@ async function loadGameRecipes() {
     // Clear existing game recipes and load new ones
     Object.keys(gameRecipes).forEach((key) => delete gameRecipes[key]);
 
-    // Load game recipes (convert metadata-format to calculator-format)
+    // Load game recipes (preserve variant structure or convert single recipes)
     for (let [name, recipe] of Object.entries(gameData.recipes)) {
-      gameRecipes[name] = {
-        produces: recipe.produces,
-        ingredients: recipe.ingredients,
-        metadata: recipe.metadata || {},
-        isGameRecipe: true,
-      };
+      if (recipe.variants) {
+        // Recipe has variants - preserve the structure
+        gameRecipes[name] = {
+          variants: recipe.variants,
+          isGameRecipe: true,
+        };
+      } else {
+        // Single recipe - store as-is
+        gameRecipes[name] = {
+          produces: recipe.produces,
+          ingredients: recipe.ingredients,
+          metadata: recipe.metadata || {},
+          isGameRecipe: true,
+        };
+      }
     }
 
     currentGame = selectedGame;
@@ -384,16 +522,18 @@ function expand(item, qty) {
       produces: 1,
       children: [],
       craftingTime: 0,
+      variantName: null,
     };
   }
 
   const recipe = allRecipes[item];
-  const { produces, ingredients } = recipe;
+  const variant = getSelectedVariant(item, recipe);
+  const { produces, ingredients, metadata } = variant;
   const crafts = Math.ceil(qty / produces);
   const actualQty = crafts * produces;
 
   // Get crafting time from metadata (defaults to 0 if not specified)
-  const baseTime = recipe.metadata?.craftingTime || 0;
+  const baseTime = metadata?.craftingTime || 0;
   const totalCraftingTime = baseTime * crafts;
 
   const children = [];
@@ -417,6 +557,7 @@ function expand(item, qty) {
     produces: produces,
     children,
     craftingTime: totalCraftingTime,
+    variantName: variant.name,
   };
 }
 
@@ -461,6 +602,11 @@ function formatTime(hours) {
 // ======= Render Tree View =======
 function renderTree(node) {
   let html = `<li>${node.qty} × ${node.name}`;
+
+  // Show variant name if not default
+  if (node.variantName && node.variantName !== "Default") {
+    html += ` <span class="variant-info">[${node.variantName}]</span>`;
+  }
 
   // Show batch info for crafted items
   if (node.crafts > 0) {

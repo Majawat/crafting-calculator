@@ -11,21 +11,34 @@ This is a pure client-side crafting calculator application built with vanilla HT
 The application follows a simple three-file structure:
 
 - **index.html**: Single-page application with forms for adding recipes and calculating crafts
-- **script.js**: All application logic including recipe storage, calculation engine, and DOM manipulation
+- **app.js**: All application logic including recipe storage, calculation engine, and DOM manipulation
 - **styles.css**: Styling with card-based layout and responsive design
 
 ### Core Data Structures
 
-- `recipes` object: In-memory storage of all recipes, persisted to localStorage
-- Recipe format: `{ produces: number, ingredients: { [name]: amount } }`
-- Tree structure: Recursive expansion creates `{ name, qty, children[] }` nodes
+- `recipes` object: In-memory storage of custom recipes, persisted to localStorage
+- `gameRecipes` object: In-memory storage of loaded game recipe packs
+- `variantPreferences` object: Stores user's selected variant per recipe, persisted to localStorage
+- Recipe format (single): `{ produces: number, ingredients: { [name]: amount }, metadata?: {...} }`
+- Recipe format (variants): `{ variants: [{ name: string, produces: number, ingredients: {...}, metadata?: {...} }] }`
+- Tree structure: Recursive expansion creates `{ name, qty, children[], variantName, ... }` nodes
+
+### Recipe Variants
+
+Recipes can have multiple variants (e.g., different crafting methods for the same item). When a recipe has variants:
+- All variants are displayed in the stored recipes list
+- A variant selector appears in the Craft card when selecting items with multiple variants
+- User preferences for variant selection are saved to localStorage
+- The selected variant is used during recipe expansion and is shown in the calculation breakdown
 
 ### Key Functions
 
-- `expand(item, qty)`: Recursively expands recipes into a tree structure
+- `expand(item, qty)`: Recursively expands recipes into a tree structure using selected variants
 - `flatten(tree)`: Converts tree to flat totals for base materials
 - `calculate()`: Main entry point that orchestrates expansion and rendering
-- Recipe management: `addRecipe()`, `updateCraftDropdown()`, `updateIngredientDatalist()`
+- `normalizeRecipe(recipe)`: Converts single recipes to variant format for consistent handling
+- `getSelectedVariant(name, recipe)`: Returns the user's preferred variant or the first one
+- Recipe management: `addRecipe()`, `updateCraftDropdown()`, `updateVariantSelector()`, `updateIngredientDatalist()`
 
 ## Development
 
