@@ -34,9 +34,14 @@
     <div class="card" id="craftCard">
       <h2>Craft</h2>
       <label for="craftItem">Item:</label>
-      <select id="craftItem">
+      <select id="craftItem" onchange="updateVariantSelector()">
         <option value="" disabled selected>Select an item</option>
       </select>
+
+      <div id="variantSelector" style="display: none;">
+        <label for="variantSelect">Recipe Variant:</label>
+        <select id="variantSelect" onchange="saveVariantSelection()"></select>
+      </div>
 
       <label for="craftQty">Quantity:</label>
       <input type="number" id="craftQty" value="1" min="1" />
