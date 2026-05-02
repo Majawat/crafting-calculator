@@ -4,6 +4,7 @@ const gameRecipes = {};
 let currentGame = null;
 let ingredientCount = 0;
 const variantPreferences = {}; // Stores selected variant index per recipe: { "RecipeName": 0 }
+let queue = []; // { item: string, qty: number }[]
 
 // ======= Load recipes from LocalStorage on page load =======
 window.addEventListener("DOMContentLoaded", () => {
@@ -21,10 +22,15 @@ window.addEventListener("DOMContentLoaded", () => {
   if (savedPreferences) {
     Object.assign(variantPreferences, JSON.parse(savedPreferences));
   }
+  const savedQueue = localStorage.getItem("queue");
+  if (savedQueue) {
+    queue = JSON.parse(savedQueue);
+  }
 
   updateCraftDropdown();
   updateIngredientDatalist();
   updateStoredRecipesList();
+  renderQueue();
   addIngredientField(); // start with one ingredient input
 });
 
@@ -467,46 +473,107 @@ function getAllRecipes() {
   return combined;
 }
 
-// ======= Calculate =======
-function calculate() {
-  const itemSelect = document.getElementById("craftItem");
-  const item = itemSelect.value.trim();
+// ======= Queue Management =======
+function addToQueue() {
+  const item = document.getElementById("craftItem").value;
   const qty = parseInt(document.getElementById("craftQty").value, 10);
   if (!item || qty < 1) return;
 
-  const tree = expand(item, qty);
-  const flatTotals = flatten(tree);
-  const totalTime = calculateTotalTime(tree);
+  queue.push({ item, qty });
+  localStorage.setItem("queue", JSON.stringify(queue));
+  renderQueue();
+}
 
-  const resultsDiv = document.getElementById("results");
+function removeFromQueue(index) {
+  queue.splice(index, 1);
+  localStorage.setItem("queue", JSON.stringify(queue));
+  renderQueue();
+}
 
-  // Show batch info for the main item
-  let html = "";
-  if (tree.crafts > 0) {
-    const excess = tree.qty - tree.requestedQty;
-    html += `<div class="batch-info">
-      <h3>${item}</h3>
-      <p><strong>Requested:</strong> ${tree.requestedQty}</p>
-      <p><strong>Will produce:</strong> ${tree.qty} (${tree.crafts} × ${tree.produces})`;
-    if (excess > 0) {
-      html += ` <span class="excess">+${excess} extra</span>`;
-    }
-    html += `</p></div>`;
+function clearQueue() {
+  queue = [];
+  localStorage.setItem("queue", JSON.stringify(queue));
+  renderQueue();
+}
+
+function renderQueue() {
+  const container = document.getElementById("queueItems");
+  const calcBtn = document.getElementById("calculateBtn");
+  if (!container) return;
+
+  if (queue.length === 0) {
+    container.innerHTML = "<p class='queue-empty'>No items in queue.</p>";
+    if (calcBtn) calcBtn.disabled = true;
+    return;
   }
 
+  if (calcBtn) calcBtn.disabled = false;
+
+  let html = "";
+  queue.forEach(({ item, qty }, index) => {
+    html += `
+      <div class="queue-item">
+        <span class="queue-item-label">${qty} &times; ${item}</span>
+        <button type="button" class="delete-btn" onclick="removeFromQueue(${index})">Remove</button>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
+}
+
+// ======= Calculate =======
+function calculate() {
+  if (queue.length === 0) return;
+
+  const trees = queue.map(({ item, qty }) => expand(item, qty));
+
+  // Merge flat totals across all queue entries
+  const combinedTotals = {};
+  trees.forEach((tree) => {
+    const flat = flatten(tree);
+    for (let [mat, amt] of Object.entries(flat)) {
+      combinedTotals[mat] = (combinedTotals[mat] || 0) + amt;
+    }
+  });
+
+  const totalTime = trees.reduce((sum, tree) => sum + calculateTotalTime(tree), 0);
+
+  const resultsDiv = document.getElementById("results");
+  let html = "";
+
+  // Combined materials section
   html +=
     "<h3>Materials Needed:</h3><ul>" +
-    Object.entries(flatTotals)
+    Object.entries(combinedTotals)
       .map(([k, v]) => `<li>${v} × ${k}</li>`)
       .join("") +
     "</ul>";
 
-  // Add total time if any recipes have time data
   if (totalTime > 0) {
-    html += `<p><strong>Crafting Time:</strong> ${formatTime(totalTime)}</p>`;
+    html += `<p><strong>Total Crafting Time:</strong> ${formatTime(totalTime)}</p>`;
   }
 
-  html += "<h3>Breakdown:</h3><ul>" + renderTree(tree) + "</ul>";
+  // Per-item breakdown
+  html += "<h3>Breakdown:</h3>";
+  trees.forEach((tree, i) => {
+    html += `<div class="queue-result-section">`;
+
+    if (tree.crafts > 0) {
+      const excess = tree.qty - tree.requestedQty;
+      html += `<div class="batch-info">
+        <h3>${queue[i].item}</h3>
+        <p><strong>Requested:</strong> ${tree.requestedQty}</p>
+        <p><strong>Will produce:</strong> ${tree.qty} (${tree.crafts} × ${tree.produces})`;
+      if (excess > 0) {
+        html += ` <span class="excess">+${excess} extra</span>`;
+      }
+      html += `</p></div>`;
+    }
+
+    html += "<ul>" + renderTree(tree) + "</ul>";
+    html += "</div>";
+  });
+
   resultsDiv.innerHTML = html;
 }
 
