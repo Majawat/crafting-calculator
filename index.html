@@ -45,7 +45,19 @@
 
       <label for="craftQty">Quantity:</label>
       <input type="number" id="craftQty" value="1" min="1" />
-      <button type="button" onclick="calculate()">Calculate</button>
+      <button type="button" onclick="addToQueue()">+ Add to Queue</button>
+    </div>
+
+    <!-- Queue Card -->
+    <div class="card" id="queueCard">
+      <h2>Queue</h2>
+      <div id="queueItems">
+        <p class="queue-empty">No items in queue.</p>
+      </div>
+      <div class="queue-actions">
+        <button type="button" class="btn-secondary" onclick="clearQueue()">Clear Queue</button>
+        <button type="button" id="calculateBtn" onclick="calculate()" disabled>Calculate All</button>
+      </div>
     </div>
 
     <!-- Results Card -->
