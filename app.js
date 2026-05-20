@@ -826,28 +826,93 @@ function renderQueue() {
   container.innerHTML = html;
 }
 
+// ======= Global Needs Calculation (fractional batch arithmetic) =======
+// Propagates exact fractional demands through the recipe tree so that
+// batch rounding only happens once at the leaf level, across all queue
+// items combined. This prevents overcounting when multiple items share
+// the same intermediate recipe.
+function computeGlobalNeeds(queue) {
+  const allRecipes = getAllRecipes();
+  const exactDemands = {};
+
+  function collectExactDemands(item, qty) {
+    exactDemands[item] = (exactDemands[item] || 0) + qty;
+    const recipe = allRecipes[item];
+    if (!recipe) return;
+    const variant = getSelectedVariant(item, recipe);
+    const exactBatches = qty / variant.produces;
+    for (const [ing, amount] of Object.entries(variant.ingredients)) {
+      let ingName = ing;
+      if (categories[ing] && !allRecipes[ing]) {
+        ingName = getSelectedMaterial(ing);
+      }
+      collectExactDemands(ingName, exactBatches * amount);
+    }
+  }
+
+  for (const { item, qty } of queue) {
+    collectExactDemands(item, qty);
+  }
+
+  const leafTotals = {};
+  const allBatches = {};
+  const queueItemSet = new Set(queue.map((q) => q.item));
+
+  for (const [mat, totalDemand] of Object.entries(exactDemands)) {
+    const recipe = allRecipes[mat];
+    if (!recipe) {
+      leafTotals[mat] = (leafTotals[mat] || 0) + Math.ceil(totalDemand);
+    } else {
+      const variant = getSelectedVariant(mat, recipe);
+      const crafts = Math.ceil(totalDemand / variant.produces);
+      const produced = crafts * variant.produces;
+      const scaledByproducts = {};
+      for (const [bp, amt] of Object.entries(variant.byproducts || {})) {
+        scaledByproducts[bp] = amt * crafts;
+      }
+      allBatches[mat] = {
+        requestedTotal: totalDemand,
+        crafts,
+        produces: variant.produces,
+        produced,
+        leftover: produced - Math.ceil(totalDemand),
+        byproducts: scaledByproducts,
+        building: variant.building || null,
+        buildingCost: variant.buildingCost || {},
+        craftingTime: (variant.metadata?.craftingTime || 0) * crafts,
+        isQueueItem: queueItemSet.has(mat),
+      };
+    }
+  }
+
+  const byproductTotals = {};
+  const buildings = {};
+  let totalTime = 0;
+  const intermediateBatches = {};
+
+  for (const [mat, info] of Object.entries(allBatches)) {
+    for (const [bp, amt] of Object.entries(info.byproducts)) {
+      byproductTotals[bp] = (byproductTotals[bp] || 0) + amt;
+    }
+    if (info.building && !buildings[info.building]) {
+      buildings[info.building] = info.buildingCost;
+    }
+    totalTime += info.craftingTime;
+    if (!info.isQueueItem) {
+      intermediateBatches[mat] = info;
+    }
+  }
+
+  return { leafTotals, byproductTotals, buildings, totalTime, intermediateBatches };
+}
+
 // ======= Calculate =======
 function calculate() {
   if (queue.length === 0) return;
 
   const trees = queue.map(({ item, qty }) => expand(item, qty));
-
-  // Merge flat totals across all queue entries
-  const combinedTotals = {};
-  trees.forEach((tree) => {
-    const flat = flatten(tree);
-    for (let [mat, amt] of Object.entries(flat)) {
-      combinedTotals[mat] = (combinedTotals[mat] || 0) + amt;
-    }
-  });
-
-  const byproductTotals = {};
-  trees.forEach((tree) => flattenByproducts(tree, byproductTotals));
-
-  const allBuildings = {};
-  trees.forEach((tree) => collectBuildings(tree, allBuildings));
-
-  const totalTime = trees.reduce((sum, tree) => sum + calculateTotalTime(tree), 0);
+  const { leafTotals, byproductTotals, buildings, totalTime, intermediateBatches } =
+    computeGlobalNeeds(queue);
 
   const resultsDiv = document.getElementById("results");
   let html = "";
@@ -855,7 +920,7 @@ function calculate() {
   // Combined materials section
   html +=
     "<h3>Materials Needed:</h3><ul>" +
-    Object.entries(combinedTotals)
+    Object.entries(leafTotals)
       .map(([k, v]) => `<li>${v} × ${k}</li>`)
       .join("") +
     "</ul>";
@@ -869,9 +934,9 @@ function calculate() {
       "</ul>";
   }
 
-  if (Object.keys(allBuildings).length > 0) {
+  if (Object.keys(buildings).length > 0) {
     html += '<h3 class="buildings-heading">Buildings Needed:</h3><ul>';
-    for (let [bldg, cost] of Object.entries(allBuildings)) {
+    for (let [bldg, cost] of Object.entries(buildings)) {
       const costStr = Object.entries(cost)
         .map(([mat, amt]) => `${amt} × ${mat}`)
         .join(", ");
@@ -882,6 +947,31 @@ function calculate() {
 
   if (totalTime > 0) {
     html += `<p><strong>Total Crafting Time:</strong> ${formatTime(totalTime)}</p>`;
+  }
+
+  // Combined Crafting section — global batch stats for intermediate materials
+  if (Object.keys(intermediateBatches).length > 0) {
+    html += '<h3 class="combined-crafting-heading">Combined Crafting:</h3><ul>';
+    for (const [mat, info] of Object.entries(intermediateBatches)) {
+      const needed = Math.ceil(info.requestedTotal);
+      const batchWord = info.crafts === 1 ? "batch" : "batches";
+      let entry = `<li><strong>${mat}</strong>: ${needed} needed → ${info.crafts} ${batchWord} → ${info.produced} produced`;
+      if (info.leftover > 0) {
+        entry += ` <span class="excess">(${info.leftover} leftover)</span>`;
+      }
+      if (Object.keys(info.byproducts).length > 0) {
+        const bpStr = Object.entries(info.byproducts)
+          .map(([k, v]) => `${v} × ${k}`)
+          .join(", ");
+        entry += ` <span class="byproduct-info">→ ${bpStr}</span>`;
+      }
+      if (info.building) {
+        entry += ` <span class="building-info">[${info.building}]</span>`;
+      }
+      entry += "</li>";
+      html += entry;
+    }
+    html += "</ul>";
   }
 
   // Per-item breakdown
@@ -1027,34 +1117,16 @@ function formatTime(hours) {
 
 // ======= Render Tree View =======
 function renderTree(node) {
-  let html = `<li>${node.qty} × ${node.name}`;
+  // For intermediates show actual demand (requestedQty); for leaves qty === requestedQty anyway
+  const displayQty = node.crafts > 0 ? node.requestedQty : node.qty;
+  let html = `<li>${displayQty} × ${node.name}`;
 
-  // Show variant name if not default
   if (node.variantName && node.variantName !== "Default") {
     html += ` <span class="variant-info">[${node.variantName}]</span>`;
   }
 
-  // Show batch info for crafted items
-  if (node.crafts > 0) {
-    const excess = node.qty - node.requestedQty;
-    html += ` <span class="craft-info">(${node.crafts} × ${node.produces}`;
-    if (excess > 0) {
-      html += `, +${excess} extra`;
-    }
-    html += `)</span>`;
-  }
-
-  // Show building tag for crafted items
   if (node.building) {
     html += ` <span class="building-info">[${node.building}]</span>`;
-  }
-
-  // Show byproducts inline
-  if (node.byproducts && Object.keys(node.byproducts).length > 0) {
-    const bpStr = Object.entries(node.byproducts)
-      .map(([k, v]) => `${v} × ${k}`)
-      .join(", ");
-    html += ` <span class="byproduct-info">[also: ${bpStr}]</span>`;
   }
 
   if (node.children.length > 0) {
@@ -1066,4 +1138,33 @@ function renderTree(node) {
   }
   html += "</li>";
   return html;
+}
+
+// ======= Export Recipes =======
+function exportRecipes() {
+  if (Object.keys(recipes).length === 0) {
+    alert("No custom recipes to export.");
+    return;
+  }
+  const name = prompt("Pack name for export:", "My Custom Recipes");
+  if (name === null) return;
+  const pack = {
+    gameInfo: { name, version: "1.0.0", description: "Exported from Crafting Calculator" },
+    recipes: { ...recipes },
+  };
+  const blob = new Blob([JSON.stringify(pack, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name.toLowerCase().replace(/\s+/g, "-") + ".json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ======= Clear All Local Data =======
+function clearAllData() {
+  if (!confirm("Clear all stored recipes, categories, and queue? This cannot be undone.")) return;
+  ["recipes", "currentGame", "variantPreferences", "queue", "categories", "materialPreferences"].forEach(
+    (k) => localStorage.removeItem(k)
+  );
+  location.reload();
 }

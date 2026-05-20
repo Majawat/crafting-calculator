@@ -121,6 +121,21 @@ button {
 button:hover {
   background: #45a049;
 }
+.danger-btn {
+  background: #c0392b;
+}
+.danger-btn:hover {
+  background: #a93226;
+}
+.data-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+.combined-crafting-heading {
+  color: #81c784;
+}
 ul {
   list-style: none;
   padding-left: 1rem;
