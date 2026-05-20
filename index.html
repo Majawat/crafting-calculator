@@ -24,6 +24,15 @@
       </div>
       <button type="button" onclick="addByproductField()">+ Add Byproduct</button>
 
+      <label for="buildingName">Built in <span class="optional-label">(optional)</span></label>
+      <input type="text" id="buildingName" placeholder="e.g. Rock Crusher" />
+
+      <div id="buildingCost">
+        <h3>Building Cost <span class="optional-label">(optional)</span></h3>
+        <!-- JS populates building cost rows here -->
+      </div>
+      <button type="button" onclick="addBuildingCostField()">+ Add Building Cost</button>
+
       <div id="ingredients">
         <h3>Ingredients</h3>
         <!-- JS will populate first ingredient field -->

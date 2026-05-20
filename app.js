@@ -4,6 +4,7 @@ const gameRecipes = {};
 let currentGame = null;
 let ingredientCount = 0;
 let byproductCount = 0;
+let buildingCostCount = 0;
 let categoryMemberCount = 0;
 const variantPreferences = {}; // Stores selected variant index per recipe: { "RecipeName": 0 }
 const categories = {}; // { categoryName: string[] }
@@ -118,6 +119,41 @@ function addByproductField() {
 }
 
 function removeByproductField(button) {
+  button.parentElement.remove();
+}
+
+function addBuildingCostField() {
+  const container = document.getElementById("buildingCost");
+  if (!container) return;
+  const div = document.createElement("div");
+  div.classList.add("building-cost-row");
+
+  div.innerHTML = `
+    <input
+      type="number"
+      placeholder="Amount"
+      min="0"
+      step="any"
+      value="1"
+      class="building-cost-amount"
+      name="buildingCostAmount_${buildingCostCount}"
+      id="buildingCostAmount_${buildingCostCount}"
+    >
+    <input
+      list="ingredientList"
+      placeholder="Material name"
+      class="building-cost-material"
+      name="buildingCostMaterial_${buildingCostCount}"
+      id="buildingCostMaterial_${buildingCostCount}"
+    >
+    <button type="button" class="delete-btn" onclick="removeBuildingCostField(this)">x</button>
+  `;
+
+  buildingCostCount++;
+  container.appendChild(div);
+}
+
+function removeBuildingCostField(button) {
   button.parentElement.remove();
 }
 
@@ -236,6 +272,8 @@ function normalizeRecipe(recipe) {
         produces: recipe.produces,
         byproducts: recipe.byproducts || {},
         ingredients: recipe.ingredients,
+        building: recipe.building || null,
+        buildingCost: recipe.buildingCost || {},
         metadata: recipe.metadata || {},
       },
     ],
@@ -321,10 +359,20 @@ function addRecipe() {
     return alert(`Cannot save recipe: "${name}" would create a circular dependency`);
   }
 
+  const building = document.getElementById("buildingName").value.trim();
+  const buildingCostDivs = document.querySelectorAll("#buildingCost .building-cost-row");
+  const buildingCost = {};
+  buildingCostDivs.forEach((div) => {
+    const mat = div.querySelector(".building-cost-material").value.trim();
+    const amt = parseFloat(div.querySelector(".building-cost-amount").value);
+    if (mat && amt > 0) buildingCost[mat] = amt;
+  });
+
   const recipeData = { produces, ingredients };
-  if (Object.keys(byproducts).length > 0) {
-    recipeData.byproducts = byproducts;
-  }
+  if (Object.keys(byproducts).length > 0) recipeData.byproducts = byproducts;
+  if (building) recipeData.building = building;
+  if (Object.keys(buildingCost).length > 0) recipeData.buildingCost = buildingCost;
+
   recipes[name] = recipeData;
   localStorage.setItem("recipes", JSON.stringify(recipes));
 
@@ -338,6 +386,8 @@ function addRecipe() {
   document.getElementById("ingredients").innerHTML = "<h3>Ingredients</h3>";
   addIngredientField();
   document.getElementById("byproducts").innerHTML = '<h3>Byproducts <span class="optional-label">(optional)</span></h3>';
+  document.getElementById("buildingName").value = "";
+  document.getElementById("buildingCost").innerHTML = '<h3>Building Cost <span class="optional-label">(optional)</span></h3>';
 }
 
 // ======= Update Craft Dropdown =======
@@ -541,12 +591,17 @@ function updateStoredRecipesList() {
         const variantLabel =
           normalized.variants.length > 1 ? `${name} [${variant.name}]` : name;
 
+        const buildingStr = variant.building
+          ? `${variant.building}${Object.keys(variant.buildingCost || {}).length > 0 ? ` (costs: ${Object.entries(variant.buildingCost).map(([m, a]) => `${a} × ${m}`).join(", ")})` : ""}`
+          : "";
+
         html += `
           <div class="recipe-item game-recipe">
             <div class="recipe-info">
               <strong>${variantLabel}</strong> (produces ${variant.produces})
               <br><small>Requires: ${ingredients}</small>
               ${byproductsStr ? `<br><small>Also produces: ${byproductsStr}</small>` : ""}
+              ${buildingStr ? `<br><small>Building: ${buildingStr}</small>` : ""}
             </div>
             <span class="recipe-source">Game</span>
           </div>
@@ -583,6 +638,10 @@ function updateStoredRecipesList() {
             ? `${displayName} [${variant.name}]`
             : displayName;
 
+        const buildingStr = variant.building
+          ? `${variant.building}${Object.keys(variant.buildingCost || {}).length > 0 ? ` (costs: ${Object.entries(variant.buildingCost).map(([m, a]) => `${a} × ${m}`).join(", ")})` : ""}`
+          : "";
+
         html += `
           <div class="recipe-item custom-recipe ${hasConflict ? "conflict-recipe" : ""}">
             <div class="recipe-info">
@@ -590,6 +649,7 @@ function updateStoredRecipesList() {
                 >Requires: ${ingredients}</small
               >
               ${byproductsStr ? `<br><small>Also produces: ${byproductsStr}</small>` : ""}
+              ${buildingStr ? `<br><small>Building: ${buildingStr}</small>` : ""}
             </div>
             <button type="button" class="delete-btn" onclick="deleteRecipe('${name}')">Delete</button>
           </div>
@@ -776,6 +836,9 @@ function calculate() {
   const byproductTotals = {};
   trees.forEach((tree) => flattenByproducts(tree, byproductTotals));
 
+  const allBuildings = {};
+  trees.forEach((tree) => collectBuildings(tree, allBuildings));
+
   const totalTime = trees.reduce((sum, tree) => sum + calculateTotalTime(tree), 0);
 
   const resultsDiv = document.getElementById("results");
@@ -796,6 +859,17 @@ function calculate() {
         .map(([k, v]) => `<li>${v} × ${k}</li>`)
         .join("") +
       "</ul>";
+  }
+
+  if (Object.keys(allBuildings).length > 0) {
+    html += '<h3 class="buildings-heading">Buildings Needed:</h3><ul>';
+    for (let [bldg, cost] of Object.entries(allBuildings)) {
+      const costStr = Object.entries(cost)
+        .map(([mat, amt]) => `${amt} × ${mat}`)
+        .join(", ");
+      html += `<li><strong>${bldg}</strong>${costStr ? `: ${costStr}` : ""}</li>`;
+    }
+    html += "</ul>";
   }
 
   if (totalTime > 0) {
@@ -837,6 +911,8 @@ function expand(item, qty) {
       crafts: 0,
       produces: 1,
       byproducts: {},
+      building: null,
+      buildingCost: {},
       children: [],
       craftingTime: 0,
       variantName: null,
@@ -845,7 +921,7 @@ function expand(item, qty) {
 
   const recipe = allRecipes[item];
   const variant = getSelectedVariant(item, recipe);
-  const { produces, ingredients, metadata } = variant;
+  const { produces, ingredients, metadata, building, buildingCost } = variant;
   const crafts = Math.ceil(qty / produces);
   const actualQty = crafts * produces;
 
@@ -877,6 +953,8 @@ function expand(item, qty) {
     crafts: crafts,
     produces: produces,
     byproducts: scaledByproducts,
+    building: building || null,
+    buildingCost: buildingCost || {},
     children,
     craftingTime: totalCraftingTime,
     variantName: variant.name,
@@ -900,6 +978,15 @@ function flattenByproducts(node, totals = {}) {
   }
   node.children.forEach((child) => flattenByproducts(child, totals));
   return totals;
+}
+
+// ======= Collect Unique Buildings Across Tree =======
+function collectBuildings(node, buildings = {}) {
+  if (node.building && !buildings[node.building]) {
+    buildings[node.building] = node.buildingCost || {};
+  }
+  node.children.forEach((child) => collectBuildings(child, buildings));
+  return buildings;
 }
 
 // ======= Calculate Total Time =======
@@ -947,6 +1034,11 @@ function renderTree(node) {
       html += `, +${excess} extra`;
     }
     html += `)</span>`;
+  }
+
+  // Show building tag for crafted items
+  if (node.building) {
+    html += ` <span class="building-info">[${node.building}]</span>`;
   }
 
   // Show byproducts inline

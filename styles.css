@@ -267,3 +267,13 @@ li {
   color: #ffb74d;
   min-width: 9rem;
 }
+
+.building-info {
+  font-size: 0.8rem;
+  color: #ce93d8;
+  font-style: italic;
+}
+
+.buildings-heading {
+  color: #ce93d8;
+}
