@@ -53,8 +53,9 @@ function switchTab(tabId) {
   document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
   document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
   document.getElementById(tabId).classList.add("active");
-  const idx = tabId === "calculateTab" ? 0 : 1;
-  document.querySelectorAll(".tab-btn")[idx].classList.add("active");
+  const tabs = ["calculateTab", "libraryTab", "setupTab"];
+  const idx = tabs.indexOf(tabId);
+  if (idx >= 0) document.querySelectorAll(".tab-btn")[idx].classList.add("active");
 }
 
 function addIngredientField() {
@@ -237,6 +238,7 @@ function editCategory(name) {
   const members = categories[name];
   if (!members) return;
 
+  switchTab("setupTab");
   document.getElementById("categoryName").value = name;
   const container = document.getElementById("categoryMembers");
   container.innerHTML = "<h3>Members</h3>";
@@ -442,11 +444,11 @@ function addRecipe() {
   document.getElementById("itemName").value = "";
   document.getElementById("variantName").value = "";
   document.getElementById("produces").value = 1;
-  document.getElementById("ingredients").innerHTML = "<h3>Ingredients</h3>";
+  document.getElementById("ingredients").innerHTML = "";
   addIngredientField();
-  document.getElementById("byproducts").innerHTML = '<h3>Byproducts <span class="optional-label">(optional)</span></h3>';
+  document.getElementById("byproducts").innerHTML = '<h4>Byproducts <span class="optional-label">(optional)</span></h4>';
   document.getElementById("buildingName").value = "";
-  document.getElementById("buildingCost").innerHTML = '<h3>Building Cost <span class="optional-label">(optional)</span></h3>';
+  document.getElementById("buildingCost").innerHTML = '<h4>Building Cost <span class="optional-label">(optional)</span></h4>';
 }
 
 // ======= Update Craft Dropdown =======
@@ -510,6 +512,7 @@ function updateVariantSelector() {
   });
 
   variantContainer.style.display = "block";
+  updateBuildingIndicator();
 }
 
 // ======= Save Variant Selection =======
@@ -525,7 +528,24 @@ function saveVariantSelection() {
   if (selectedItem && !isNaN(selectedVariantIdx)) {
     setVariantPreference(selectedItem, selectedVariantIdx);
     updateMaterialSelectors(); // variant change may alter category ingredients
+    updateBuildingIndicator();
   }
+}
+
+// ======= Update Building Indicator =======
+function updateBuildingIndicator() {
+  const el = document.getElementById("buildingIndicator");
+  if (!el) return;
+  const itemSelect = document.getElementById("craftItem");
+  if (!itemSelect?.value) { el.style.display = "none"; return; }
+  const recipe = getAllRecipes()[itemSelect.value];
+  if (!recipe) { el.style.display = "none"; return; }
+  const variant = getSelectedVariant(itemSelect.value, recipe);
+  if (!variant?.building) { el.style.display = "none"; return; }
+  const safeName = variant.building.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const hasRecipe = !!getAllRecipes()[variant.building];
+  el.innerHTML = `<span class="building-req-label">Built in:</span><span class="building-req-name">${variant.building}</span>${hasRecipe ? `<button type="button" class="add-to-queue-btn" onclick="addBuildingToQueue('${safeName}')">+ Add to queue</button>` : ""}`;
+  el.style.display = "flex";
 }
 
 // ======= Update Material Selectors =======
@@ -1080,91 +1100,117 @@ function calculate() {
   const { leafTotals, byproductTotals, buildings, totalTime, intermediateBatches } =
     computeGlobalNeeds(queue);
 
+  const allRecipes = getAllRecipes();
   const resultsDiv = document.getElementById("results");
   let html = "";
 
-  // Combined materials section
-  html +=
-    "<h3>Materials Needed:</h3><ul>" +
-    Object.entries(leafTotals)
-      .map(([k, v]) => `<li>${v} × ${k}</li>`)
-      .join("") +
-    "</ul>";
+  // Hero materials grid
+  html += `<div class="results-section">
+    <div class="section-label">materials needed</div>
+    <div class="material-grid">`;
+  for (const [name, qty] of Object.entries(leafTotals)) {
+    html += `<div class="material-tile">
+      <div class="material-qty">${qty}</div>
+      <div class="material-name">${name}</div>
+    </div>`;
+  }
+  html += `</div></div>`;
 
+  // Byproducts (if any)
   if (Object.keys(byproductTotals).length > 0) {
-    html +=
-      '<h3 class="byproducts-heading">Byproducts:</h3><ul>' +
-      Object.entries(byproductTotals)
-        .map(([k, v]) => `<li>${v} × ${k}</li>`)
-        .join("") +
-      "</ul>";
+    html += `<div class="results-section">
+      <div class="section-label">byproducts</div>
+      <div class="material-grid">`;
+    for (const [name, qty] of Object.entries(byproductTotals)) {
+      html += `<div class="material-tile byproduct-tile">
+        <div class="material-qty">+${qty}</div>
+        <div class="material-name">${name}</div>
+      </div>`;
+    }
+    html += `</div></div>`;
   }
 
+  // Summary strip
+  const summaryChips = [];
+  if (totalTime > 0) summaryChips.push(`<span class="summary-chip">&#9201; ${formatTime(totalTime)}</span>`);
+  const buildingCount = Object.keys(buildings).length;
+  if (buildingCount > 0) summaryChips.push(`<span class="summary-chip">&#127981; ${buildingCount} building${buildingCount !== 1 ? "s" : ""}</span>`);
+  if (summaryChips.length > 0) {
+    html += `<div class="summary-strip">${summaryChips.join("")}</div>`;
+  }
+
+  // Combined Crafting collapsible (open by default)
+  if (Object.keys(intermediateBatches).length > 0) {
+    const count = Object.keys(intermediateBatches).length;
+    html += `<details class="results-collapse" open>
+      <summary>Combined Crafting <span class="collapse-count">${count} item${count !== 1 ? "s" : ""}</span></summary>
+      <div class="collapse-content">
+        <table class="batch-table">
+          <thead><tr>
+            <th>Item</th><th>Batches</th><th>Produced</th><th>Leftover</th><th>Byproducts</th><th>Building</th>
+          </tr></thead>
+          <tbody>`;
+    for (const [mat, info] of Object.entries(intermediateBatches)) {
+      const leftover = info.leftover;
+      const leftoverCell = leftover > 0 ? `<span class="excess">+${leftover}</span>` : "&#8212;";
+      const bpEntries = Object.entries(info.byproducts);
+      const bpStr = bpEntries.length > 0
+        ? bpEntries.map(([k, v]) => `${v} &times; ${k}`).join(", ")
+        : "&#8212;";
+      const buildingStr = info.building ? `<span class="building-info">${info.building}</span>` : "&#8212;";
+      html += `<tr>
+        <td>${mat}</td>
+        <td class="mono">${info.crafts}</td>
+        <td class="mono">${info.produced}</td>
+        <td class="mono">${leftoverCell}</td>
+        <td class="byproduct-info">${bpStr}</td>
+        <td>${buildingStr}</td>
+      </tr>`;
+    }
+    html += `</tbody></table></div></details>`;
+  }
+
+  // Buildings Needed collapsible (closed by default)
   if (Object.keys(buildings).length > 0) {
-    const allRecipes = getAllRecipes();
-    html += '<h3 class="buildings-heading">Buildings Needed:</h3><ul>';
-    for (let [bldg, cost] of Object.entries(buildings)) {
-      const costStr = Object.entries(cost)
-        .map(([mat, amt]) => `${amt} × ${mat}`)
-        .join(", ");
+    const bCount = Object.keys(buildings).length;
+    html += `<details class="results-collapse">
+      <summary>Buildings Needed <span class="collapse-count">${bCount} station${bCount !== 1 ? "s" : ""}</span></summary>
+      <div class="collapse-content buildings-list">`;
+    for (const [bldg, cost] of Object.entries(buildings)) {
+      const costStr = Object.entries(cost).map(([mat, amt]) => `${amt} &times; ${mat}`).join(", ");
       const safeName = bldg.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
       const addBtn = allRecipes[bldg]
-        ? `<button type="button" class="add-to-queue-btn" onclick="addBuildingToQueue('${safeName}')">Add to queue</button>`
+        ? `<button type="button" class="add-to-queue-btn" onclick="addBuildingToQueue('${safeName}')">+ Add to queue</button>`
         : "";
-      html += `<li><strong>${bldg}</strong>${costStr ? `: ${costStr}` : ""} ${addBtn}</li>`;
+      html += `<div class="building-row">
+        <strong>${bldg}</strong>
+        ${costStr ? `<span class="building-cost">${costStr}</span>` : ""}
+        ${addBtn}
+      </div>`;
     }
-    html += "</ul>";
+    html += `</div></details>`;
   }
 
-  if (totalTime > 0) {
-    html += `<p><strong>Total Crafting Time:</strong> ${formatTime(totalTime)}</p>`;
-  }
-
-  // Combined Crafting section — global batch stats for intermediate materials
-  if (Object.keys(intermediateBatches).length > 0) {
-    html += '<h3 class="combined-crafting-heading">Combined Crafting:</h3><ul>';
-    for (const [mat, info] of Object.entries(intermediateBatches)) {
-      const needed = Math.ceil(info.requestedTotal);
-      const batchWord = info.crafts === 1 ? "batch" : "batches";
-      let entry = `<li><strong>${mat}</strong>: ${needed} needed → ${info.crafts} ${batchWord} → ${info.produced} produced`;
-      if (info.leftover > 0) {
-        entry += ` <span class="excess">(${info.leftover} leftover)</span>`;
-      }
-      if (Object.keys(info.byproducts).length > 0) {
-        const bpStr = Object.entries(info.byproducts)
-          .map(([k, v]) => `${v} × ${k}`)
-          .join(", ");
-        entry += ` <span class="byproduct-info">→ ${bpStr}</span>`;
-      }
-      if (info.building) {
-        entry += ` <span class="building-info">[${info.building}]</span>`;
-      }
-      entry += "</li>";
-      html += entry;
-    }
-    html += "</ul>";
-  }
-
-  // Per-item breakdown
-  html += "<h3>Breakdown:</h3>";
+  // Per-item Breakdown collapsible (closed by default)
+  html += `<details class="results-collapse">
+    <summary>Per-item Breakdown <span class="collapse-count">${queue.length} item${queue.length !== 1 ? "s" : ""}</span></summary>
+    <div class="collapse-content">`;
   trees.forEach((tree, i) => {
-    html += `<div class="queue-result-section">`;
-
+    html += `<div class="breakdown-item">`;
     if (tree.crafts > 0) {
       const excess = tree.qty - tree.requestedQty;
-      html += `<div class="batch-info">
-        <h3>${queue[i].item}</h3>
-        <p><strong>Requested:</strong> ${tree.requestedQty}</p>
-        <p><strong>Will produce:</strong> ${tree.qty} (${tree.crafts} × ${tree.produces})`;
+      html += `<div class="batch-header">
+        <strong>${queue[i].item}</strong>
+        &nbsp; Requested: ${tree.requestedQty} &rarr; Will produce: ${tree.qty} (${tree.crafts} &times; ${tree.produces})`;
       if (excess > 0) {
         html += ` <span class="excess">+${excess} extra</span>`;
       }
-      html += `</p></div>`;
+      html += `</div>`;
     }
-
-    html += "<ul>" + renderTree(tree) + "</ul>";
-    html += "</div>";
+    html += `<ul class="tree-list">${renderTree(tree)}</ul>`;
+    html += `</div>`;
   });
+  html += `</div></details>`;
 
   resultsDiv.innerHTML = html;
 }
@@ -1301,7 +1347,7 @@ function renderTree(node) {
   }
 
   if (node.children.length > 0) {
-    html += "<ul>";
+    html += `<ul class="tree-list">`;
     node.children.forEach((child) => {
       html += renderTree(child);
     });
