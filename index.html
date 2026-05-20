@@ -18,6 +18,21 @@
       <label for="produces">Produces (quantity):</label>
       <input type="number" id="produces" value="1" min="1" />
 
+      <div id="byproducts">
+        <h3>Byproducts <span class="optional-label">(optional)</span></h3>
+        <!-- JS populates byproduct rows here -->
+      </div>
+      <button type="button" onclick="addByproductField()">+ Add Byproduct</button>
+
+      <label for="buildingName">Built in <span class="optional-label">(optional)</span></label>
+      <input type="text" id="buildingName" placeholder="e.g. Rock Crusher" />
+
+      <div id="buildingCost">
+        <h3>Building Cost <span class="optional-label">(optional)</span></h3>
+        <!-- JS populates building cost rows here -->
+      </div>
+      <button type="button" onclick="addBuildingCostField()">+ Add Building Cost</button>
+
       <div id="ingredients">
         <h3>Ingredients</h3>
         <!-- JS will populate first ingredient field -->
@@ -30,11 +45,27 @@
       <button type="button" onclick="addRecipe()">Save Recipe</button>
     </div>
 
+    <!-- Material Categories Card -->
+    <div class="card" id="categoriesCard">
+      <h2>Material Categories</h2>
+      <label for="categoryName">Category Name:</label>
+      <input type="text" id="categoryName" placeholder="e.g. refined_metal" />
+
+      <div id="categoryMembers">
+        <h3>Members</h3>
+        <!-- JS populates member fields here -->
+      </div>
+      <button type="button" onclick="addCategoryMemberField()">+ Add Member</button>
+      <button type="button" onclick="addCategory()">Save Category</button>
+
+      <div id="storedCategories"></div>
+    </div>
+
     <!-- Craft Item Card -->
     <div class="card" id="craftCard">
       <h2>Craft</h2>
       <label for="craftItem">Item:</label>
-      <select id="craftItem" onchange="updateVariantSelector()">
+      <select id="craftItem" onchange="updateVariantSelector(); updateMaterialSelectors()">
         <option value="" disabled selected>Select an item</option>
       </select>
 
@@ -42,6 +73,8 @@
         <label for="variantSelect">Recipe Variant:</label>
         <select id="variantSelect" onchange="saveVariantSelection()"></select>
       </div>
+
+      <div id="materialSelectors" style="display: none;"></div>
 
       <label for="craftQty">Quantity:</label>
       <input type="number" id="craftQty" value="1" min="1" />
