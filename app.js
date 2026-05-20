@@ -49,6 +49,14 @@ window.addEventListener("DOMContentLoaded", () => {
   addCategoryMemberField(); // start with one category member input
 });
 
+function switchTab(tabId) {
+  document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+  document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+  document.getElementById(tabId).classList.add("active");
+  const idx = tabId === "calculateTab" ? 0 : 1;
+  document.querySelectorAll(".tab-btn")[idx].classList.add("active");
+}
+
 function addIngredientField() {
   const container = document.getElementById("ingredients");
   const div = document.createElement("div");
