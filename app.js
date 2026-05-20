@@ -987,6 +987,75 @@ function addBuildingToQueue(name) {
   document.getElementById("queueCard").scrollIntoView({ behavior: "smooth" });
 }
 
+function getQueueItemSelectors(item) {
+  const allRecipes = getAllRecipes();
+  const recipe = allRecipes[item];
+  if (!recipe) return "";
+
+  const variant = getSelectedVariant(item, recipe);
+  const categoryIngredients = Object.keys(variant.ingredients).filter((ing) => categories[ing]);
+
+  const buildingName = variant.building;
+  const buildingRecipe = buildingName ? allRecipes[buildingName] : null;
+  const normalizedBuilding = buildingRecipe ? normalizeRecipe(buildingRecipe) : null;
+  const buildingHasVariants = normalizedBuilding && normalizedBuilding.variants.length > 1;
+  const buildingVariant = buildingRecipe ? getSelectedVariant(buildingName, buildingRecipe) : null;
+  const buildingCatIngredients = buildingVariant
+    ? Object.keys(buildingVariant.ingredients).filter((ing) => categories[ing])
+    : [];
+
+  if (categoryIngredients.length === 0 && !buildingHasVariants && buildingCatIngredients.length === 0) {
+    return "";
+  }
+
+  let html = '<div class="queue-item-selectors">';
+
+  categoryIngredients.forEach((catName) => {
+    const members = categories[catName];
+    const selected = getSelectedMaterial(catName);
+    const options = members
+      .map((m) => `<option value="${m}"${m === selected ? " selected" : ""}>${m}</option>`)
+      .join("");
+    html += `<div class="material-selector-row">
+      <label><em>${catName}:</em></label>
+      <select onchange="saveMaterialSelection('${catName}', this.value)">${options}</select>
+    </div>`;
+  });
+
+  if (buildingName && buildingRecipe && (buildingHasVariants || buildingCatIngredients.length > 0)) {
+    html += `<div class="building-selector-section"><span class="building-selector-label">Building: ${buildingName}</span>`;
+
+    if (buildingHasVariants) {
+      const preferredIdx = variantPreferences[buildingName] || 0;
+      const validIdx = Math.min(preferredIdx, normalizedBuilding.variants.length - 1);
+      const options = normalizedBuilding.variants
+        .map((v, i) => `<option value="${i}"${i === validIdx ? " selected" : ""}>${v.name}</option>`)
+        .join("");
+      html += `<div class="material-selector-row">
+        <label>Variant:</label>
+        <select onchange="saveBuildingVariantSelection('${buildingName}', this.value)">${options}</select>
+      </div>`;
+    }
+
+    buildingCatIngredients.forEach((catName) => {
+      const members = categories[catName];
+      const selected = getSelectedMaterial(catName);
+      const options = members
+        .map((m) => `<option value="${m}"${m === selected ? " selected" : ""}>${m}</option>`)
+        .join("");
+      html += `<div class="material-selector-row">
+        <label><em>${catName}:</em></label>
+        <select onchange="saveMaterialSelection('${catName}', this.value)">${options}</select>
+      </div>`;
+    });
+
+    html += "</div>";
+  }
+
+  html += "</div>";
+  return html;
+}
+
 function renderQueue() {
   const container = document.getElementById("queueItems");
   const calcBtn = document.getElementById("calculateBtn");
@@ -1002,10 +1071,14 @@ function renderQueue() {
 
   let html = "";
   queue.forEach(({ item, qty }, index) => {
+    const selectors = getQueueItemSelectors(item);
     html += `
       <div class="queue-item">
-        <span class="queue-item-label">${qty} &times; ${item}</span>
-        <button type="button" class="delete-btn" onclick="removeFromQueue(${index})">Remove</button>
+        <div class="queue-item-main">
+          <span class="queue-item-label">${qty} &times; ${item}</span>
+          <button type="button" class="delete-btn" onclick="removeFromQueue(${index})">Remove</button>
+        </div>
+        ${selectors}
       </div>
     `;
   });
