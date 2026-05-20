@@ -14,3 +14,6 @@ Thumbs.db
 *.swo
 .idea/
 .vscode/
+
+# Claude Code working files
+.claude/
