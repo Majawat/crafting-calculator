@@ -3,6 +3,7 @@ const recipes = {};
 const gameRecipes = {};
 let currentGame = null;
 let ingredientCount = 0;
+let byproductCount = 0;
 const variantPreferences = {}; // Stores selected variant index per recipe: { "RecipeName": 0 }
 let queue = []; // { item: string, qty: number }[]
 
@@ -74,6 +75,39 @@ function removeIngredientField(button) {
   button.parentElement.remove();
 }
 
+function addByproductField() {
+  const container = document.getElementById("byproducts");
+  const div = document.createElement("div");
+  div.classList.add("byproduct");
+
+  div.innerHTML = `
+    <input
+      type="number"
+      placeholder="Amount"
+      min="1"
+      value="1"
+      class="byproduct-amount"
+      name="byproductAmount_${byproductCount}"
+      id="byproductAmount_${byproductCount}"
+    >
+    <input
+      list="ingredientList"
+      placeholder="Byproduct name"
+      class="byproduct-name"
+      name="byproductName_${byproductCount}"
+      id="byproductName_${byproductCount}"
+    >
+    <button type="button" class="delete-btn" onclick="removeByproductField(this)">x</button>
+  `;
+
+  byproductCount++;
+  container.appendChild(div);
+}
+
+function removeByproductField(button) {
+  button.parentElement.remove();
+}
+
 // ======= Recipe Variants Helpers =======
 // Normalize a recipe to always have variants array
 function normalizeRecipe(recipe) {
@@ -86,6 +120,7 @@ function normalizeRecipe(recipe) {
       {
         name: "Default",
         produces: recipe.produces,
+        byproducts: recipe.byproducts || {},
         ingredients: recipe.ingredients,
         metadata: recipe.metadata || {},
       },
@@ -150,6 +185,16 @@ function addRecipe() {
     }
   });
 
+  const byproductDivs = document.querySelectorAll("#byproducts .byproduct");
+  const byproducts = {};
+  byproductDivs.forEach((div) => {
+    const bpName = div.querySelector(".byproduct-name").value.trim();
+    const bpAmt = parseInt(div.querySelector(".byproduct-amount").value, 10);
+    if (bpName && bpAmt > 0) {
+      byproducts[bpName] = bpAmt;
+    }
+  });
+
   if (!name) {
     document.getElementById("itemName").focus();
     return alert("Item name required");
@@ -162,9 +207,12 @@ function addRecipe() {
     return alert(`Cannot save recipe: "${name}" would create a circular dependency`);
   }
 
-  recipes[name] = { produces, ingredients };
+  const recipeData = { produces, ingredients };
+  if (Object.keys(byproducts).length > 0) {
+    recipeData.byproducts = byproducts;
+  }
+  recipes[name] = recipeData;
   localStorage.setItem("recipes", JSON.stringify(recipes));
-  console.log(`Recipe for ${name} saved!`, produces, ingredients);
 
   updateCraftDropdown();
   updateIngredientDatalist();
@@ -175,6 +223,7 @@ function addRecipe() {
   document.getElementById("produces").value = 1;
   document.getElementById("ingredients").innerHTML = "<h3>Ingredients</h3>";
   addIngredientField();
+  document.getElementById("byproducts").innerHTML = '<h3>Byproducts <span class="optional-label">(optional)</span></h3>';
 }
 
 // ======= Update Craft Dropdown =======
@@ -310,6 +359,10 @@ function updateStoredRecipesList() {
         const ingredients = Object.entries(variant.ingredients)
           .map(([ing, amt]) => `${amt} x ${ing}`)
           .join(", ");
+        const byproductEntries = Object.entries(variant.byproducts || {});
+        const byproductsStr = byproductEntries
+          .map(([item, amt]) => `${amt} × ${item}`)
+          .join(", ");
 
         const variantLabel =
           normalized.variants.length > 1 ? `${name} [${variant.name}]` : name;
@@ -319,6 +372,7 @@ function updateStoredRecipesList() {
             <div class="recipe-info">
               <strong>${variantLabel}</strong> (produces ${variant.produces})
               <br><small>Requires: ${ingredients}</small>
+              ${byproductsStr ? `<br><small>Also produces: ${byproductsStr}</small>` : ""}
             </div>
             <span class="recipe-source">Game</span>
           </div>
@@ -342,6 +396,10 @@ function updateStoredRecipesList() {
         const ingredients = Object.entries(variant.ingredients)
           .map(([ing, amt]) => `${amt} x ${ing}`)
           .join(", ");
+        const byproductEntries = Object.entries(variant.byproducts || {});
+        const byproductsStr = byproductEntries
+          .map(([item, amt]) => `${amt} × ${item}`)
+          .join(", ");
 
         const variantLabel =
           normalized.variants.length > 1
@@ -354,6 +412,7 @@ function updateStoredRecipesList() {
               <strong>${variantLabel}</strong> (produces ${variant.produces}) <br /><small
                 >Requires: ${ingredients}</small
               >
+              ${byproductsStr ? `<br><small>Also produces: ${byproductsStr}</small>` : ""}
             </div>
             <button type="button" class="delete-btn" onclick="deleteRecipe('${name}')">Delete</button>
           </div>
@@ -536,6 +595,9 @@ function calculate() {
     }
   });
 
+  const byproductTotals = {};
+  trees.forEach((tree) => flattenByproducts(tree, byproductTotals));
+
   const totalTime = trees.reduce((sum, tree) => sum + calculateTotalTime(tree), 0);
 
   const resultsDiv = document.getElementById("results");
@@ -548,6 +610,15 @@ function calculate() {
       .map(([k, v]) => `<li>${v} × ${k}</li>`)
       .join("") +
     "</ul>";
+
+  if (Object.keys(byproductTotals).length > 0) {
+    html +=
+      '<h3 class="byproducts-heading">Byproducts:</h3><ul>' +
+      Object.entries(byproductTotals)
+        .map(([k, v]) => `<li>${v} × ${k}</li>`)
+        .join("") +
+      "</ul>";
+  }
 
   if (totalTime > 0) {
     html += `<p><strong>Total Crafting Time:</strong> ${formatTime(totalTime)}</p>`;
@@ -587,6 +658,7 @@ function expand(item, qty) {
       requestedQty: qty,
       crafts: 0,
       produces: 1,
+      byproducts: {},
       children: [],
       craftingTime: 0,
       variantName: null,
@@ -602,6 +674,12 @@ function expand(item, qty) {
   // Get crafting time from metadata (defaults to 0 if not specified)
   const baseTime = metadata?.craftingTime || 0;
   const totalCraftingTime = baseTime * crafts;
+
+  // Scale byproducts by number of crafting runs
+  const scaledByproducts = {};
+  for (let [bpItem, bpAmt] of Object.entries(variant.byproducts || {})) {
+    scaledByproducts[bpItem] = bpAmt * crafts;
+  }
 
   const children = [];
   for (let ing in ingredients) {
@@ -622,6 +700,7 @@ function expand(item, qty) {
     requestedQty: qty,
     crafts: crafts,
     produces: produces,
+    byproducts: scaledByproducts,
     children,
     craftingTime: totalCraftingTime,
     variantName: variant.name,
@@ -635,6 +714,15 @@ function flatten(node, totals = {}) {
   } else {
     node.children.forEach((child) => flatten(child, totals));
   }
+  return totals;
+}
+
+// ======= Flatten Byproducts Across All Nodes =======
+function flattenByproducts(node, totals = {}) {
+  for (let [item, amt] of Object.entries(node.byproducts || {})) {
+    totals[item] = (totals[item] || 0) + amt;
+  }
+  node.children.forEach((child) => flattenByproducts(child, totals));
   return totals;
 }
 
@@ -683,6 +771,14 @@ function renderTree(node) {
       html += `, +${excess} extra`;
     }
     html += `)</span>`;
+  }
+
+  // Show byproducts inline
+  if (node.byproducts && Object.keys(node.byproducts).length > 0) {
+    const bpStr = Object.entries(node.byproducts)
+      .map(([k, v]) => `${v} × ${k}`)
+      .join(", ");
+    html += ` <span class="byproduct-info">[also: ${bpStr}]</span>`;
   }
 
   if (node.children.length > 0) {

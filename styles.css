@@ -225,3 +225,19 @@ li {
   margin-bottom: 0;
   padding-bottom: 0;
 }
+
+.byproduct-info {
+  font-size: 0.8rem;
+  color: #81c784;
+  font-style: italic;
+}
+
+.byproducts-heading {
+  color: #81c784;
+}
+
+.optional-label {
+  font-weight: normal;
+  font-size: 0.85em;
+  color: #aaa;
+}
