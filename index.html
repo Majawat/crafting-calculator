@@ -140,9 +140,11 @@
         <div id="gameStatus"></div>
         <div id="storedRecipes"></div>
         <div class="data-actions">
+          <button type="button" onclick="importRecipes()">Import Recipes</button>
           <button type="button" onclick="exportRecipes()">Export My Recipes</button>
           <button type="button" onclick="clearAllData()" class="danger-btn">Clear All Data</button>
         </div>
+        <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="handleImport(event)" />
       </div>
     </div>
 
