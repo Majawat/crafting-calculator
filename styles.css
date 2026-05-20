@@ -7,6 +7,76 @@ body {
 h1 {
   text-align: center;
 }
+
+.tab-nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.tab-btn {
+  background: #3a3a3a;
+  color: #aaa;
+  border: 1px solid #555;
+  border-radius: 6px 6px 0 0;
+  margin-top: 0;
+  padding: 0.5rem 1.5rem;
+}
+
+.tab-btn:hover {
+  background: #444;
+  color: #e0e0e0;
+}
+
+.tab-btn.active {
+  background: #2d2d2d;
+  color: #4caf50;
+  border-bottom-color: #2d2d2d;
+  font-weight: bold;
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.active {
+  display: block;
+}
+
+.calculate-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.form-section {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: #252525;
+  border-radius: 6px;
+  border-left: 3px solid #555;
+}
+
+.form-section h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.95rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.form-section h4 {
+  margin: 0.75rem 0 0.25rem 0;
+  font-size: 0.85rem;
+  color: #888;
+}
+
+@media (max-width: 600px) {
+  .calculate-columns {
+    grid-template-columns: 1fr;
+  }
+}
 .card {
   background: #2d2d2d;
   padding: 1rem;
