@@ -4,7 +4,10 @@ const gameRecipes = {};
 let currentGame = null;
 let ingredientCount = 0;
 let byproductCount = 0;
+let categoryMemberCount = 0;
 const variantPreferences = {}; // Stores selected variant index per recipe: { "RecipeName": 0 }
+const categories = {}; // { categoryName: string[] }
+const materialPreferences = {}; // { categoryName: specificMaterial }
 let queue = []; // { item: string, qty: number }[]
 
 // ======= Load recipes from LocalStorage on page load =======
@@ -27,12 +30,22 @@ window.addEventListener("DOMContentLoaded", () => {
   if (savedQueue) {
     queue = JSON.parse(savedQueue);
   }
+  const savedCategories = localStorage.getItem("categories");
+  if (savedCategories) {
+    Object.assign(categories, JSON.parse(savedCategories));
+  }
+  const savedMaterialPrefs = localStorage.getItem("materialPreferences");
+  if (savedMaterialPrefs) {
+    Object.assign(materialPreferences, JSON.parse(savedMaterialPrefs));
+  }
 
   updateCraftDropdown();
   updateIngredientDatalist();
   updateStoredRecipesList();
+  updateStoredCategoriesList();
   renderQueue();
   addIngredientField(); // start with one ingredient input
+  addCategoryMemberField(); // start with one category member input
 });
 
 function addIngredientField() {
@@ -106,6 +119,107 @@ function addByproductField() {
 
 function removeByproductField(button) {
   button.parentElement.remove();
+}
+
+// ======= Category Management =======
+function addCategoryMemberField() {
+  const container = document.getElementById("categoryMembers");
+  if (!container) return;
+  const div = document.createElement("div");
+  div.classList.add("category-member");
+
+  div.innerHTML = `
+    <input
+      type="text"
+      placeholder="Material name (e.g. copper)"
+      class="category-member-name"
+      name="categoryMember_${categoryMemberCount}"
+      id="categoryMember_${categoryMemberCount}"
+    >
+    <button type="button" class="delete-btn" onclick="removeCategoryMemberField(this)">x</button>
+  `;
+
+  categoryMemberCount++;
+  container.appendChild(div);
+}
+
+function removeCategoryMemberField(button) {
+  button.parentElement.remove();
+}
+
+function addCategory() {
+  const name = document.getElementById("categoryName").value.trim();
+  const memberDivs = document.querySelectorAll("#categoryMembers .category-member");
+  const members = [];
+
+  memberDivs.forEach((div) => {
+    const memberName = div.querySelector(".category-member-name").value.trim();
+    if (memberName) members.push(memberName);
+  });
+
+  if (!name) {
+    document.getElementById("categoryName").focus();
+    return alert("Category name required");
+  }
+  if (members.length === 0) return alert("At least one member required");
+
+  categories[name] = members;
+  localStorage.setItem("categories", JSON.stringify(categories));
+
+  updateIngredientDatalist();
+  updateStoredCategoriesList();
+  updateStoredRecipesList();
+
+  // Reset form
+  document.getElementById("categoryName").value = "";
+  document.getElementById("categoryMembers").innerHTML = "<h3>Members</h3>";
+  addCategoryMemberField();
+}
+
+function deleteCategory(name) {
+  if (!confirm(`Delete category "${name}"?`)) return;
+  delete categories[name];
+  localStorage.setItem("categories", JSON.stringify(categories));
+  updateIngredientDatalist();
+  updateStoredCategoriesList();
+  updateStoredRecipesList();
+}
+
+function updateStoredCategoriesList() {
+  const container = document.getElementById("storedCategories");
+  if (!container) return;
+
+  const names = Object.keys(categories);
+  if (names.length === 0) {
+    container.innerHTML = "<p>No categories defined.</p>";
+    return;
+  }
+
+  let html = "<div class='recipes-list'>";
+  for (let name of names) {
+    const members = categories[name];
+    html += `
+      <div class="recipe-item custom-recipe">
+        <div class="recipe-info">
+          <strong>${name}</strong>
+          <br><small>${members.join(", ")}</small>
+        </div>
+        <button type="button" class="delete-btn" onclick="deleteCategory('${name}')">Delete</button>
+      </div>
+    `;
+  }
+  html += "</div>";
+  container.innerHTML = html;
+}
+
+// ======= Material Preference Helpers =======
+function getSelectedMaterial(categoryName) {
+  return materialPreferences[categoryName] || categories[categoryName]?.[0] || categoryName;
+}
+
+function setMaterialPreference(categoryName, material) {
+  materialPreferences[categoryName] = material;
+  localStorage.setItem("materialPreferences", JSON.stringify(materialPreferences));
 }
 
 // ======= Recipe Variants Helpers =======
@@ -301,7 +415,59 @@ function saveVariantSelection() {
 
   if (selectedItem && !isNaN(selectedVariantIdx)) {
     setVariantPreference(selectedItem, selectedVariantIdx);
+    updateMaterialSelectors(); // variant change may alter category ingredients
   }
+}
+
+// ======= Update Material Selectors =======
+function updateMaterialSelectors() {
+  const container = document.getElementById("materialSelectors");
+  if (!container) return;
+
+  const itemSelect = document.getElementById("craftItem");
+  const selectedItem = itemSelect?.value;
+
+  if (!selectedItem) {
+    container.style.display = "none";
+    return;
+  }
+
+  const allRecipes = getAllRecipes();
+  const recipe = allRecipes[selectedItem];
+  if (!recipe) {
+    container.style.display = "none";
+    return;
+  }
+
+  const variant = getSelectedVariant(selectedItem, recipe);
+  const categoryIngredients = Object.keys(variant.ingredients).filter((ing) => categories[ing]);
+
+  if (categoryIngredients.length === 0) {
+    container.style.display = "none";
+    return;
+  }
+
+  let html = "";
+  categoryIngredients.forEach((catName) => {
+    const members = categories[catName];
+    const selected = getSelectedMaterial(catName);
+    const options = members
+      .map((m) => `<option value="${m}"${m === selected ? " selected" : ""}>${m}</option>`)
+      .join("");
+    html += `
+      <div class="material-selector-row">
+        <label><em>${catName}:</em></label>
+        <select onchange="saveMaterialSelection('${catName}', this.value)">${options}</select>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+  container.style.display = "block";
+}
+
+function saveMaterialSelection(categoryName, material) {
+  setMaterialPreference(categoryName, material);
 }
 
 // ======= Update Ingredient Datalist =======
@@ -322,6 +488,11 @@ function updateIngredientDatalist() {
         ingredientsSet.add(ing);
       }
     }
+  }
+
+  // Category names appear as ingredient suggestions
+  for (let catName in categories) {
+    ingredientsSet.add(catName);
   }
 
   ingredientsSet.forEach((name) => {
@@ -357,7 +528,10 @@ function updateStoredRecipesList() {
       // Show all variants
       normalized.variants.forEach((variant, idx) => {
         const ingredients = Object.entries(variant.ingredients)
-          .map(([ing, amt]) => `${amt} x ${ing}`)
+          .map(([ing, amt]) => {
+            const label = categories[ing] ? `<span class="category-ref">${ing}</span>` : ing;
+            return `${amt} x ${label}`;
+          })
           .join(", ");
         const byproductEntries = Object.entries(variant.byproducts || {});
         const byproductsStr = byproductEntries
@@ -394,7 +568,10 @@ function updateStoredRecipesList() {
       // Show all variants
       normalized.variants.forEach((variant, idx) => {
         const ingredients = Object.entries(variant.ingredients)
-          .map(([ing, amt]) => `${amt} x ${ing}`)
+          .map(([ing, amt]) => {
+            const label = categories[ing] ? `<span class="category-ref">${ing}</span>` : ing;
+            return `${amt} x ${label}`;
+          })
           .join(", ");
         const byproductEntries = Object.entries(variant.byproducts || {});
         const byproductsStr = byproductEntries
@@ -507,6 +684,7 @@ function updateAllUI() {
   updateCraftDropdown();
   updateIngredientDatalist();
   updateStoredRecipesList();
+  updateStoredCategoriesList();
 }
 
 // ======= Get All Recipes (Combined) =======
@@ -684,12 +862,10 @@ function expand(item, qty) {
   const children = [];
   for (let ing in ingredients) {
     const need = ingredients[ing] * crafts;
-    // When expanding ingredients, check if we need to use the prefixed version
     let ingredientName = ing;
-    if (gameRecipes[ing] && recipes[ing]) {
-      // Both versions exist - prefer the game version for sub-recipes
-      // (user explicitly chose the custom version only if they selected it from dropdown)
-      ingredientName = ing; // Use game version
+    if (categories[ing] && !allRecipes[ing]) {
+      // Category ingredient: resolve to the selected specific material
+      ingredientName = getSelectedMaterial(ing);
     }
     children.push(expand(ingredientName, need));
   }
