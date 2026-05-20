@@ -1326,7 +1326,8 @@ function handleImport(event) {
       if (!data.recipes || typeof data.recipes !== "object") {
         return alert("Invalid recipe file: missing 'recipes' object.");
       }
-      let imported = 0;
+      let importedRecipes = 0;
+      let importedCategories = 0;
       for (const [name, recipe] of Object.entries(data.recipes)) {
         if (recipes[name]) {
           const existing = normalizeRecipe(recipes[name]);
@@ -1343,11 +1344,19 @@ function handleImport(event) {
         } else {
           recipes[name] = recipe;
         }
-        imported++;
+        importedRecipes++;
       }
       localStorage.setItem("recipes", JSON.stringify(recipes));
+      if (data.categories && typeof data.categories === "object") {
+        for (const [name, members] of Object.entries(data.categories)) {
+          categories[name] = members;
+          importedCategories++;
+        }
+        localStorage.setItem("categories", JSON.stringify(categories));
+      }
       updateAllUI();
-      alert(`Imported ${imported} recipe(s) successfully.`);
+      const catMsg = importedCategories > 0 ? ` and ${importedCategories} categor${importedCategories === 1 ? "y" : "ies"}` : "";
+      alert(`Imported ${importedRecipes} recipe(s)${catMsg} successfully.`);
     } catch (err) {
       alert(`Failed to import: ${err.message}`);
     }
@@ -1358,8 +1367,8 @@ function handleImport(event) {
 
 // ======= Export Recipes =======
 function exportRecipes() {
-  if (Object.keys(recipes).length === 0) {
-    alert("No custom recipes to export.");
+  if (Object.keys(recipes).length === 0 && Object.keys(categories).length === 0) {
+    alert("No custom recipes or categories to export.");
     return;
   }
   const name = prompt("Pack name for export:", "My Custom Recipes");
@@ -1367,6 +1376,7 @@ function exportRecipes() {
   const pack = {
     gameInfo: { name, version: "1.0.0", description: "Exported from Crafting Calculator" },
     recipes: { ...recipes },
+    categories: { ...categories },
   };
   const blob = new Blob([JSON.stringify(pack, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
