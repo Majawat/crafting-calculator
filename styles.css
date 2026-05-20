@@ -362,3 +362,24 @@ li {
 .buildings-heading {
   color: #ce93d8;
 }
+
+.add-to-queue-btn {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  margin-left: 0.5rem;
+  background: #2e4a2e;
+  color: #81c784;
+  border: 1px solid #4caf50;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.add-to-queue-btn:hover {
+  background: #3a5f3a;
+}
+
+.form-hint {
+  font-size: 0.8rem;
+  color: #888;
+  margin: 0.25rem 0 0;
+}

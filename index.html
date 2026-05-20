@@ -70,6 +70,9 @@
         <label for="itemName">Item Name:</label>
         <input list="ingredientList" type="text" id="itemName" />
 
+        <label for="variantName">Variant Name <span class="optional-label">(optional)</span>:</label>
+        <input type="text" id="variantName" placeholder="e.g. Rock Crusher method" />
+
         <div class="form-section">
           <h3>Inputs</h3>
           <div id="ingredients">
@@ -93,13 +96,14 @@
         <div class="form-section">
           <h3>Requirements <span class="optional-label">(optional)</span></h3>
           <label for="buildingName">Built in</label>
-          <input type="text" id="buildingName" placeholder="e.g. Rock Crusher" />
+          <input type="text" id="buildingName" list="ingredientList" placeholder="e.g. Rock Crusher" />
 
           <div id="buildingCost">
             <h4>Building Cost <span class="optional-label">(optional)</span></h4>
             <!-- JS populates building cost rows here -->
           </div>
           <button type="button" onclick="addBuildingCostField()">+ Add Building Cost</button>
+          <p class="form-hint">If filled, a recipe for this building will be created automatically.</p>
         </div>
 
         <!-- shared datalist for all ingredient inputs -->

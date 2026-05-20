@@ -333,6 +333,7 @@ function hasCircularDependency(itemName, recipeSet, visited = new Set()) {
 // ======= Add Recipe =======
 function addRecipe() {
   const name = document.getElementById("itemName").value.trim();
+  const variantName = document.getElementById("variantName").value.trim() || "Default";
   const produces = parseInt(document.getElementById("produces").value, 10);
   const ingredientDivs = document.querySelectorAll("#ingredients .ingredient");
   const ingredients = {};
@@ -376,12 +377,31 @@ function addRecipe() {
     if (mat && amt > 0) buildingCost[mat] = amt;
   });
 
-  const recipeData = { produces, ingredients };
-  if (Object.keys(byproducts).length > 0) recipeData.byproducts = byproducts;
-  if (building) recipeData.building = building;
-  if (Object.keys(buildingCost).length > 0) recipeData.buildingCost = buildingCost;
+  // Auto-create a separate recipe for the building if cost is specified and no recipe exists yet
+  if (building && Object.keys(buildingCost).length > 0 && !getAllRecipes()[building]) {
+    recipes[building] = { variants: [{ name: "Default", produces: 1, ingredients: buildingCost, byproducts: {} }] };
+  }
 
-  recipes[name] = recipeData;
+  // Build the new variant object (buildingCost lives in the building's own recipe, not here)
+  const newVariant = { name: variantName, produces, ingredients, byproducts: {} };
+  if (Object.keys(byproducts).length > 0) newVariant.byproducts = byproducts;
+  if (building) newVariant.building = building;
+
+  // Append variant if recipe already exists, otherwise create fresh
+  if (recipes[name]) {
+    const normalized = normalizeRecipe(recipes[name]);
+    const existingIdx = normalized.variants.findIndex((v) => v.name === variantName);
+    if (existingIdx >= 0) {
+      if (!confirm(`Variant "${variantName}" already exists for "${name}". Overwrite?`)) return;
+      normalized.variants[existingIdx] = newVariant;
+    } else {
+      normalized.variants.push(newVariant);
+    }
+    recipes[name] = normalized;
+  } else {
+    recipes[name] = { variants: [newVariant] };
+  }
+
   localStorage.setItem("recipes", JSON.stringify(recipes));
 
   updateCraftDropdown();
@@ -390,6 +410,7 @@ function addRecipe() {
 
   // Reset form
   document.getElementById("itemName").value = "";
+  document.getElementById("variantName").value = "";
   document.getElementById("produces").value = 1;
   document.getElementById("ingredients").innerHTML = "<h3>Ingredients</h3>";
   addIngredientField();
@@ -539,6 +560,9 @@ function updateIngredientDatalist() {
   for (let recipeName in allRecipes) {
     const recipe = allRecipes[recipeName];
     const normalized = normalizeRecipe(recipe);
+
+    // Recipe names are valid ingredient / building references
+    ingredientsSet.add(recipeName);
 
     // Add ingredients from all variants
     for (let variant of normalized.variants) {
@@ -801,6 +825,13 @@ function clearQueue() {
   renderQueue();
 }
 
+function addBuildingToQueue(name) {
+  queue.push({ item: name, qty: 1 });
+  localStorage.setItem("queue", JSON.stringify(queue));
+  renderQueue();
+  document.getElementById("queueCard").scrollIntoView({ behavior: "smooth" });
+}
+
 function renderQueue() {
   const container = document.getElementById("queueItems");
   const calcBtn = document.getElementById("calculateBtn");
@@ -935,12 +966,17 @@ function calculate() {
   }
 
   if (Object.keys(buildings).length > 0) {
+    const allRecipes = getAllRecipes();
     html += '<h3 class="buildings-heading">Buildings Needed:</h3><ul>';
     for (let [bldg, cost] of Object.entries(buildings)) {
       const costStr = Object.entries(cost)
         .map(([mat, amt]) => `${amt} × ${mat}`)
         .join(", ");
-      html += `<li><strong>${bldg}</strong>${costStr ? `: ${costStr}` : ""}</li>`;
+      const safeName = bldg.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+      const addBtn = allRecipes[bldg]
+        ? `<button type="button" class="add-to-queue-btn" onclick="addBuildingToQueue('${safeName}')">Add to queue</button>`
+        : "";
+      html += `<li><strong>${bldg}</strong>${costStr ? `: ${costStr}` : ""} ${addBtn}</li>`;
     }
     html += "</ul>";
   }
