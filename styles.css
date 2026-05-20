@@ -383,3 +383,35 @@ li {
   color: #888;
   margin: 0.25rem 0 0;
 }
+
+.edit-btn {
+  background: #1565c0;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.6rem;
+  margin: 0;
+}
+
+.edit-btn:hover {
+  background: #0d47a1;
+}
+
+.item-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.building-selector-section {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #555;
+}
+
+.building-selector-label {
+  font-size: 0.8rem;
+  color: #ce93d8;
+  font-style: italic;
+  display: block;
+  margin-bottom: 0.25rem;
+}

@@ -207,6 +207,10 @@ function addCategory() {
   }
   if (members.length === 0) return alert("At least one member required");
 
+  if (categories[name]) {
+    if (!confirm(`Category "${name}" already exists. Overwrite?`)) return;
+  }
+
   categories[name] = members;
   localStorage.setItem("categories", JSON.stringify(categories));
 
@@ -229,6 +233,28 @@ function deleteCategory(name) {
   updateStoredRecipesList();
 }
 
+function editCategory(name) {
+  const members = categories[name];
+  if (!members) return;
+
+  document.getElementById("categoryName").value = name;
+  const container = document.getElementById("categoryMembers");
+  container.innerHTML = "<h3>Members</h3>";
+  categoryMemberCount = 0;
+
+  members.forEach((member) => {
+    addCategoryMemberField();
+    const input = container.querySelector(
+      `#categoryMember_${categoryMemberCount - 1}`
+    );
+    if (input) input.value = member;
+  });
+
+  document
+    .getElementById("categoriesCard")
+    .scrollIntoView({ behavior: "smooth" });
+}
+
 function updateStoredCategoriesList() {
   const container = document.getElementById("storedCategories");
   if (!container) return;
@@ -242,13 +268,17 @@ function updateStoredCategoriesList() {
   let html = "<div class='recipes-list'>";
   for (let name of names) {
     const members = categories[name];
+    const safeName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     html += `
       <div class="recipe-item custom-recipe">
         <div class="recipe-info">
           <strong>${name}</strong>
           <br><small>${members.join(", ")}</small>
         </div>
-        <button type="button" class="delete-btn" onclick="deleteCategory('${name}')">Delete</button>
+        <div class="item-actions">
+          <button type="button" class="edit-btn" onclick="editCategory('${safeName}')">Edit</button>
+          <button type="button" class="delete-btn" onclick="deleteCategory('${safeName}')">Delete</button>
+        </div>
       </div>
     `;
   }
@@ -519,14 +549,32 @@ function updateMaterialSelectors() {
   }
 
   const variant = getSelectedVariant(selectedItem, recipe);
-  const categoryIngredients = Object.keys(variant.ingredients).filter((ing) => categories[ing]);
+  const categoryIngredients = Object.keys(variant.ingredients).filter(
+    (ing) => categories[ing]
+  );
 
-  if (categoryIngredients.length === 0) {
+  const buildingName = variant.building;
+  const buildingRecipe = buildingName ? allRecipes[buildingName] : null;
+  const normalizedBuilding = buildingRecipe ? normalizeRecipe(buildingRecipe) : null;
+  const buildingHasVariants = normalizedBuilding && normalizedBuilding.variants.length > 1;
+  const buildingVariant = buildingRecipe
+    ? getSelectedVariant(buildingName, buildingRecipe)
+    : null;
+  const buildingCatIngredients = buildingVariant
+    ? Object.keys(buildingVariant.ingredients).filter((ing) => categories[ing])
+    : [];
+
+  if (
+    categoryIngredients.length === 0 &&
+    !buildingHasVariants &&
+    buildingCatIngredients.length === 0
+  ) {
     container.style.display = "none";
     return;
   }
 
   let html = "";
+
   categoryIngredients.forEach((catName) => {
     const members = categories[catName];
     const selected = getSelectedMaterial(catName);
@@ -541,6 +589,40 @@ function updateMaterialSelectors() {
     `;
   });
 
+  if (buildingName && buildingRecipe && (buildingHasVariants || buildingCatIngredients.length > 0)) {
+    html += `<div class="building-selector-section"><span class="building-selector-label">Building: ${buildingName}</span>`;
+
+    if (buildingHasVariants) {
+      const preferredIdx = variantPreferences[buildingName] || 0;
+      const validIdx = Math.min(preferredIdx, normalizedBuilding.variants.length - 1);
+      const options = normalizedBuilding.variants
+        .map((v, i) => `<option value="${i}"${i === validIdx ? " selected" : ""}>${v.name}</option>`)
+        .join("");
+      html += `
+        <div class="material-selector-row">
+          <label>Variant:</label>
+          <select onchange="saveBuildingVariantSelection('${buildingName}', this.value)">${options}</select>
+        </div>
+      `;
+    }
+
+    buildingCatIngredients.forEach((catName) => {
+      const members = categories[catName];
+      const selected = getSelectedMaterial(catName);
+      const options = members
+        .map((m) => `<option value="${m}"${m === selected ? " selected" : ""}>${m}</option>`)
+        .join("");
+      html += `
+        <div class="material-selector-row">
+          <label><em>${catName}:</em></label>
+          <select onchange="saveMaterialSelection('${catName}', this.value)">${options}</select>
+        </div>
+      `;
+    });
+
+    html += "</div>";
+  }
+
   container.innerHTML = html;
   container.style.display = "block";
 }
@@ -549,39 +631,46 @@ function saveMaterialSelection(categoryName, material) {
   setMaterialPreference(categoryName, material);
 }
 
+function saveBuildingVariantSelection(buildingName, variantIndex) {
+  setVariantPreference(buildingName, parseInt(variantIndex, 10));
+  updateMaterialSelectors();
+}
+
 // ======= Update Ingredient Datalist =======
 function updateIngredientDatalist() {
   const datalist = document.getElementById("ingredientList");
   if (!datalist) return;
-  datalist.innerHTML = ""; // clear existing options
+  datalist.innerHTML = "";
 
-  const ingredientsSet = new Set();
   const allRecipes = getAllRecipes();
+  const recipeNames = new Set(Object.keys(allRecipes));
+  const categoryNames = new Set(
+    Object.keys(categories).filter((c) => !recipeNames.has(c))
+  );
+  const otherNames = new Set();
+
   for (let recipeName in allRecipes) {
-    const recipe = allRecipes[recipeName];
-    const normalized = normalizeRecipe(recipe);
-
-    // Recipe names are valid ingredient / building references
-    ingredientsSet.add(recipeName);
-
-    // Add ingredients from all variants
+    const normalized = normalizeRecipe(allRecipes[recipeName]);
     for (let variant of normalized.variants) {
       for (let ing in variant.ingredients) {
-        ingredientsSet.add(ing);
+        if (!recipeNames.has(ing) && !categoryNames.has(ing)) {
+          otherNames.add(ing);
+        }
       }
     }
   }
 
-  // Category names appear as ingredient suggestions
-  for (let catName in categories) {
-    ingredientsSet.add(catName);
-  }
+  const sorted = [
+    ...[...recipeNames].sort((a, b) => a.localeCompare(b)),
+    ...[...categoryNames].sort((a, b) => a.localeCompare(b)),
+    ...[...otherNames].sort((a, b) => a.localeCompare(b)),
+  ];
 
-  ingredientsSet.forEach((name) => {
+  for (const name of sorted) {
     const option = document.createElement("option");
     option.value = name;
     datalist.appendChild(option);
-  });
+  }
 }
 
 // ======= Update Stored Recipes List =======
@@ -674,6 +763,7 @@ function updateStoredRecipesList() {
           ? `${variant.building}${Object.keys(variant.buildingCost || {}).length > 0 ? ` (costs: ${Object.entries(variant.buildingCost).map(([m, a]) => `${a} × ${m}`).join(", ")})` : ""}`
           : "";
 
+        const safeRecipeName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
         html += `
           <div class="recipe-item custom-recipe ${hasConflict ? "conflict-recipe" : ""}">
             <div class="recipe-info">
@@ -683,7 +773,10 @@ function updateStoredRecipesList() {
               ${byproductsStr ? `<br><small>Also produces: ${byproductsStr}</small>` : ""}
               ${buildingStr ? `<br><small>Building: ${buildingStr}</small>` : ""}
             </div>
-            <button type="button" class="delete-btn" onclick="deleteRecipe('${name}')">Delete</button>
+            <div class="item-actions">
+              <button type="button" class="edit-btn" onclick="editRecipe('${safeRecipeName}', ${idx})">Edit</button>
+              <button type="button" class="delete-btn" onclick="deleteRecipe('${safeRecipeName}')">Delete</button>
+            </div>
           </div>
         `;
       });
@@ -708,6 +801,48 @@ function deleteRecipe(recipeName) {
   updateStoredRecipesList();
 
   console.log(`Recipe for "${recipeName}" deleted.`);
+}
+
+function editRecipe(name, variantIdx) {
+  const recipe = recipes[name];
+  if (!recipe) return;
+  const normalized = normalizeRecipe(recipe);
+  const variant = normalized.variants[variantIdx];
+  if (!variant) return;
+
+  switchTab("setupTab");
+
+  document.getElementById("itemName").value = name;
+  document.getElementById("variantName").value = variant.name;
+  document.getElementById("produces").value = variant.produces;
+
+  // Fill ingredients
+  document.getElementById("ingredients").innerHTML = "";
+  for (const [ingName, ingAmt] of Object.entries(variant.ingredients)) {
+    addIngredientField();
+    const idx = ingredientCount - 1;
+    document.getElementById(`ingredientName_${idx}`).value = ingName;
+    document.getElementById(`ingredientAmount_${idx}`).value = ingAmt;
+  }
+
+  // Fill byproducts
+  document.getElementById("byproducts").innerHTML =
+    '<h4>Byproducts <span class="optional-label">(optional)</span></h4>';
+  for (const [bpName, bpAmt] of Object.entries(variant.byproducts || {})) {
+    addByproductField();
+    const idx = byproductCount - 1;
+    document.getElementById(`byproductName_${idx}`).value = bpName;
+    document.getElementById(`byproductAmount_${idx}`).value = bpAmt;
+  }
+
+  // Fill building
+  document.getElementById("buildingName").value = variant.building || "";
+  document.getElementById("buildingCost").innerHTML =
+    '<h4>Building Cost <span class="optional-label">(optional)</span></h4>';
+
+  document
+    .getElementById("addRecipeCard")
+    .scrollIntoView({ behavior: "smooth" });
 }
 
 // ======= Load Game Recipes =======
@@ -1174,6 +1309,51 @@ function renderTree(node) {
   }
   html += "</li>";
   return html;
+}
+
+// ======= Import Recipes =======
+function importRecipes() {
+  document.getElementById("importFileInput").click();
+}
+
+function handleImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.recipes || typeof data.recipes !== "object") {
+        return alert("Invalid recipe file: missing 'recipes' object.");
+      }
+      let imported = 0;
+      for (const [name, recipe] of Object.entries(data.recipes)) {
+        if (recipes[name]) {
+          const existing = normalizeRecipe(recipes[name]);
+          const incoming = normalizeRecipe(recipe);
+          for (const variant of incoming.variants) {
+            const existIdx = existing.variants.findIndex((v) => v.name === variant.name);
+            if (existIdx >= 0) {
+              existing.variants[existIdx] = variant;
+            } else {
+              existing.variants.push(variant);
+            }
+          }
+          recipes[name] = existing;
+        } else {
+          recipes[name] = recipe;
+        }
+        imported++;
+      }
+      localStorage.setItem("recipes", JSON.stringify(recipes));
+      updateAllUI();
+      alert(`Imported ${imported} recipe(s) successfully.`);
+    } catch (err) {
+      alert(`Failed to import: ${err.message}`);
+    }
+    event.target.value = "";
+  };
+  reader.readAsText(file);
 }
 
 // ======= Export Recipes =======
