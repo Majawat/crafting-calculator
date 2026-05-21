@@ -16,31 +16,32 @@
 
 /* ======= Base ======= */
 body {
-  font-family: 'Kalam', 'Comic Sans MS', cursive, sans-serif;
+  font-family: "Kalam", "Comic Sans MS", cursive, sans-serif;
   background: var(--bg);
   color: var(--ink);
   margin: 0;
-  padding: 1.5rem;
+  padding: 1rem;
 }
 
 h1 {
   text-align: center;
-  font-family: 'Caveat', cursive, sans-serif;
+  font-family: "Caveat", cursive, sans-serif;
   font-size: 2.5rem;
   color: var(--accent);
-  margin-bottom: 1rem;
+  margin-top: 0;
+  margin-bottom: 0.5rem;
 }
 
 h2 {
-  font-family: 'Caveat', cursive, sans-serif;
+  font-family: "Caveat", cursive, sans-serif;
   color: var(--ink);
   margin-top: 0;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
   font-size: 1.5rem;
 }
 
 h3 {
-  font-family: 'Caveat', cursive, sans-serif;
+  font-family: "Caveat", cursive, sans-serif;
   color: var(--ink-2);
   margin: 0 0 0.5rem 0;
   font-size: 1.1rem;
@@ -56,12 +57,12 @@ h4 {
 .tab-nav {
   display: flex;
   border-bottom: 1px solid rgba(203, 217, 234, 0.3);
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.75rem;
 }
 
 .tab-btn {
-  font-family: 'Caveat', cursive, sans-serif;
-  font-size: 1.1rem;
+  font-family: "Caveat", cursive, sans-serif;
+  font-size: 1.3rem;
   background: transparent;
   color: var(--ink-3);
   border: none;
@@ -70,7 +71,9 @@ h4 {
   padding: 0.5rem 1.25rem;
   cursor: pointer;
   margin-top: 0;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .tab-btn:hover {
@@ -96,14 +99,14 @@ h4 {
 .calculate-layout {
   display: grid;
   grid-template-columns: 380px 1fr;
-  gap: 1rem;
+  gap: 0.75rem;
   align-items: start;
 }
 
 .left-panel {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.6rem;
 }
 
 .setup-columns {
@@ -118,8 +121,8 @@ h4 {
   background: var(--paper);
   border: 1px solid rgba(203, 217, 234, 0.15);
   border-radius: 8px;
-  padding: 1.25rem;
-  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.6rem;
 }
 
 .card:last-child {
@@ -134,8 +137,9 @@ h4 {
 label {
   color: var(--ink-2);
   font-size: 0.85rem;
+  width: 100%;
   display: block;
-  margin-top: 0.5rem;
+  margin-top: 0.2rem;
 }
 
 input,
@@ -144,9 +148,9 @@ select {
   border: 1px dashed var(--ink-3);
   border-radius: 4px;
   color: var(--ink);
-  padding: 0.35rem 0.5rem;
+  padding: 0.25rem 0.5rem;
   width: auto;
-  font-family: 'Kalam', cursive, sans-serif;
+  font-family: "Kalam", cursive, sans-serif;
   font-size: 0.9rem;
 }
 
@@ -167,11 +171,10 @@ button {
   color: #1a1201;
   border: none;
   border-radius: 20px;
-  padding: 0.5rem 1.25rem;
-  font-family: 'Caveat', cursive, sans-serif;
+  padding: 0.25rem 0.75rem;
+  font-family: "Caveat", cursive, sans-serif;
   font-size: 1.1rem;
   cursor: pointer;
-  margin-top: 0.5rem;
   transition: background 0.15s;
 }
 
@@ -222,11 +225,10 @@ button:hover {
 
 .queue-item {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
   background: var(--paper-2);
   border-left: 3px solid var(--accent);
-  padding: 0.5rem 0.75rem;
+  padding: 0.4rem 0.6rem;
   border-radius: 4px;
 }
 
@@ -234,9 +236,21 @@ button:hover {
   margin-top: 0.4rem;
 }
 
+.queue-item-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .queue-item-label {
   color: var(--ink);
   font-size: 0.95rem;
+}
+
+.queue-item-selectors {
+  margin-top: 0.3rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid rgba(203, 217, 234, 0.1);
 }
 
 .queue-empty {
@@ -295,7 +309,7 @@ button:hover {
 }
 
 .material-qty {
-  font-family: 'Caveat', cursive, sans-serif;
+  font-family: "Caveat", cursive, sans-serif;
   font-size: 1.75rem;
   font-weight: 700;
   line-height: 1;
@@ -358,7 +372,7 @@ button:hover {
 .results-collapse summary {
   cursor: pointer;
   padding: 0.75rem 1rem;
-  font-family: 'Caveat', cursive, sans-serif;
+  font-family: "Caveat", cursive, sans-serif;
   font-size: 1.1rem;
   color: var(--ink);
   display: flex;
@@ -379,7 +393,7 @@ button:hover {
 .collapse-count {
   font-size: 0.85rem;
   color: var(--ink-3);
-  font-family: 'Kalam', cursive, sans-serif;
+  font-family: "Kalam", cursive, sans-serif;
 }
 
 .collapse-content {
@@ -480,28 +494,6 @@ ul.tree-list ul.tree-list {
   padding-left: 1rem;
 }
 
-/* Building required indicator */
-.building-required {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--paper-2);
-  border-radius: 4px;
-  border-left: 3px solid var(--accent-2);
-  margin: 0.5rem 0;
-  font-size: 0.85rem;
-}
-
-.building-req-label {
-  color: var(--ink-3);
-}
-
-.building-req-name {
-  color: var(--accent-2);
-  font-weight: bold;
-}
-
 /* ======= Recipe Lists ======= */
 .recipes-list {
   display: flex;
@@ -559,7 +551,8 @@ ul.tree-list ul.tree-list {
 
 /* ======= Form Sections ======= */
 .form-section {
-  margin-top: 1rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
   padding: 0.75rem;
   background: var(--paper-2);
   border-radius: 6px;
@@ -608,7 +601,6 @@ ul.tree-list ul.tree-list {
 .delete-btn {
   background: #e05757;
   color: #fff;
-  font-size: 0.8rem;
   padding: 0.25rem 0.55rem;
   margin: 0;
   border-radius: 20px;
@@ -621,7 +613,6 @@ ul.tree-list ul.tree-list {
 .edit-btn {
   background: #1565c0;
   color: #fff;
-  font-size: 0.8rem;
   padding: 0.25rem 0.55rem;
   margin: 0;
   border-radius: 20px;
@@ -640,7 +631,7 @@ ul.tree-list ul.tree-list {
   border-radius: 10px;
   cursor: pointer;
   margin: 0;
-  font-family: 'Kalam', cursive, sans-serif;
+  font-family: "Kalam", cursive, sans-serif;
 }
 
 .add-to-queue-btn:hover {
@@ -670,50 +661,45 @@ ul.tree-list ul.tree-list {
   color: #81c784;
 }
 
-/* ======= Variant & Material Selectors ======= */
-#variantSelector {
-  margin: 0.5rem 0;
-  padding: 0.5rem;
-  background: var(--paper-2);
-  border-radius: 4px;
-  border: 1px solid rgba(203, 217, 234, 0.2);
+#craftItem,
+#categoryName,
+#itemName,
+#variantName,
+#buildingName,
+.building-req-name,
+.building-req-label,
+#variantSelect,
+#materialSelectors,
+.material-selector-row select {
+  width: 100%;
+  display: inline-block;
 }
 
-#materialSelectors {
-  margin: 0.5rem 0;
-  padding: 0.5rem;
-  background: var(--paper-2);
-  border-radius: 4px;
-  border: 1px solid rgba(203, 217, 234, 0.2);
-}
+/* ======= Variant & Material Selectors ======= */
 
 .material-selector-row {
-  display: flex;
   align-items: center;
   gap: 0.5rem;
   margin: 0.25rem 0;
 }
 
-.material-selector-row label {
-  color: var(--accent);
-  font-weight: normal;
+#craftCard label {
   min-width: 9rem;
   font-size: 0.85rem;
   margin-top: 0;
 }
 
-.building-selector-section {
+#buildingIndicator {
   margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid rgba(203, 217, 234, 0.15);
 }
 
-.building-selector-label {
-  font-size: 0.8rem;
-  color: #ce93d8;
-  font-style: italic;
+#buildingCraftRow {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding-left: 0.5em;
+  padding-right: 0.5em;
   display: block;
-  margin-bottom: 0.25rem;
+  border-left: 3px solid #ce93d8;
 }
 
 /* ======= Data Actions ======= */
