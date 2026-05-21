@@ -1119,7 +1119,7 @@ function computeGlobalNeeds(queue) {
     const recipe = allRecipes[item];
     if (!recipe) return;
     const variant = getSelectedVariant(item, recipe);
-    const exactBatches = qty / variant.produces;
+    const exactBatches = Math.ceil(qty / variant.produces);
     for (const [ing, amount] of Object.entries(variant.ingredients)) {
       let ingName = ing;
       if (categories[ing] && !allRecipes[ing]) {
