@@ -1,0 +1,125 @@
+{
+  "gameInfo": {
+    "name": "Oxygen Not Included",
+    "version": "1.0.0",
+    "description": "Exported from Crafting Calculator"
+  },
+  "recipes": {
+    "Auto-Sweeper": {
+      "variants": [
+        {
+          "name": "Default",
+          "produces": 1,
+          "ingredients": {
+            "Refined Metal": 200
+          },
+          "byproducts": {}
+        }
+      ]
+    },
+    "Rock Crusher": {
+      "variants": [
+        {
+          "name": "Default",
+          "produces": 1,
+          "ingredients": {
+            "Metal Ore": 800
+          },
+          "byproducts": {}
+        }
+      ]
+    },
+    "Copper": {
+      "variants": [
+        {
+          "name": "Rock Crusher",
+          "produces": 50,
+          "ingredients": {
+            "Copper Ore": 100
+          },
+          "byproducts": {
+            "Sand": 50
+          },
+          "building": "Rock Crusher"
+        }
+      ]
+    },
+    "Wire": {
+      "variants": [
+        {
+          "name": "Default",
+          "produces": 1,
+          "ingredients": {
+            "Metal Ore": 25
+          },
+          "byproducts": {}
+        }
+      ]
+    },
+    "Gold": {
+      "variants": [
+        {
+          "name": "Default",
+          "produces": 50,
+          "ingredients": {
+            "Gold Amalgam": 100
+          },
+          "byproducts": {
+            "Sand": 50
+          },
+          "building": "Rock Crusher"
+        }
+      ]
+    },
+    "Microbe Musher": {
+      "variants": [
+        {
+          "name": "Default",
+          "produces": 1,
+          "ingredients": {
+            "Metal Ore": 400
+          },
+          "byproducts": {}
+        }
+      ]
+    },
+    "Mush Bar": {
+      "variants": [
+        {
+          "name": "Default",
+          "produces": 800,
+          "ingredients": {
+            "Dirt": 75,
+            "Water": 75
+          },
+          "byproducts": {},
+          "building": "Microbe Musher"
+        }
+      ]
+    },
+    "Liceloaf": {
+      "variants": [
+        {
+          "name": "Default",
+          "produces": 1700,
+          "ingredients": {
+            "Meal Lice": 1200,
+            "Water": 50
+          },
+          "byproducts": {},
+          "building": "Microbe Musher"
+        }
+      ]
+    }
+  },
+  "categories": {
+    "Refined Metal": [
+      "Copper",
+      "Gold"
+    ],
+    "Metal Ore": [
+      "Copper",
+      "Gold Amalgam"
+    ]
+  }
+}
