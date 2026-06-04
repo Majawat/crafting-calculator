@@ -103,20 +103,20 @@ function addIngredientField() {
 
   // Build the inner HTML, conditionally adding delete button
   div.innerHTML = `
-    <input 
-      type="number" 
-      placeholder="Amount" 
-      min="1" 
-      value="1" 
+    <input
+      type="number"
+      placeholder="Amount"
+      min="1"
+      value="1"
       class="ingredient-amount"
-      name="ingredientAmount_${ingredientCount}" 
+      name="ingredientAmount_${ingredientCount}"
       id="ingredientAmount_${ingredientCount}"
     >
-    <input 
-      list="ingredientList" 
-      placeholder="Ingredient name" 
-      class="ingredient-name" 
-      name="ingredientName_${ingredientCount}" 
+    <input
+      list="ingredientList"
+      placeholder="Ingredient name"
+      class="ingredient-name"
+      name="ingredientName_${ingredientCount}"
       id="ingredientName_${ingredientCount}"
     >
     ${
