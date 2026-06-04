@@ -1,3 +1,13 @@
+// ======= HTML Escaping =======
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // ======= Recipes Storage =======
 const recipes = {};
 const gameRecipes = {};
@@ -47,6 +57,34 @@ window.addEventListener("DOMContentLoaded", () => {
   renderQueue();
   addIngredientField(); // start with one ingredient input
   addCategoryMemberField(); // start with one category member input
+
+  document.getElementById("storedCategories").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    const name = btn.dataset.name;
+    if (btn.dataset.action === "edit-category") editCategory(name);
+    else if (btn.dataset.action === "delete-category") deleteCategory(name);
+  });
+
+  document.getElementById("storedRecipes").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    const name = btn.dataset.name;
+    if (btn.dataset.action === "edit-recipe") editRecipe(name, parseInt(btn.dataset.variantIdx, 10));
+    else if (btn.dataset.action === "delete-recipe") deleteRecipe(name);
+  });
+
+  document.getElementById("calculateTab").addEventListener("change", (e) => {
+    const sel = e.target;
+    if (sel.dataset.action === "save-material") saveMaterialSelection(sel.dataset.categoryName, sel.value);
+    else if (sel.dataset.action === "save-building-variant") saveBuildingVariantSelection(sel.dataset.buildingName, sel.value);
+  });
+
+  document.getElementById("calculateTab").addEventListener("click", (e) => {
+    const btn = e.target.closest('[data-action="add-building-to-queue"]');
+    if (!btn) return;
+    addBuildingToQueue(btn.dataset.buildingName);
+  });
 });
 
 function switchTab(tabId) {
@@ -266,16 +304,15 @@ function updateStoredCategoriesList() {
   let html = "<div class='recipes-list'>";
   for (let name of names) {
     const members = categories[name];
-    const safeName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     html += `
       <div class="recipe-item custom-recipe">
         <div class="recipe-info">
-          <strong>${name}</strong>
-          <br><small>${members.join(", ")}</small>
+          <strong>${escapeHtml(name)}</strong>
+          <br><small>${escapeHtml(members.join(", "))}</small>
         </div>
         <div class="item-actions">
-          <button type="button" class="edit-btn" onclick="editCategory('${safeName}')">Edit</button>
-          <button type="button" class="delete-btn" onclick="deleteCategory('${safeName}')">Delete</button>
+          <button type="button" class="edit-btn" data-action="edit-category" data-name="${escapeHtml(name)}">Edit</button>
+          <button type="button" class="delete-btn" data-action="delete-category" data-name="${escapeHtml(name)}">Delete</button>
         </div>
       </div>
     `;
@@ -553,17 +590,31 @@ function updateBuildingIndicator() {
     el.style.display = "none";
     return;
   }
-  const safeName = variant.building.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-  const hasRecipe = !!getAllRecipes()[variant.building];
-  el.innerHTML = `<label class="building-req-label">Built in:</label><span class="building-req-name">${variant.building}</span>`;
+  el.innerHTML = `<label class="building-req-label">Built in:</label><span class="building-req-name">${escapeHtml(variant.building)}</span>`;
   el.style.display = "block";
+}
+
+// ======= Build Material Option Elements =======
+function buildMaterialOptions(catName) {
+  const selected = getSelectedMaterial(catName);
+  return categories[catName]
+    .map((m) => `<option value="${escapeHtml(m)}"${m === selected ? " selected" : ""}>${escapeHtml(m)}</option>`)
+    .join("");
 }
 
 // ======= Update Material Selectors =======
 function updateMaterialSelectors() {
   const container = document.getElementById("materialSelectors");
   const buildingContainer = document.getElementById("buildingSelectors");
+  const buildingRowDiv = document.getElementById("buildingCraftRow");
   if (!container) return;
+
+  // Always reset building panel; re-populate below only if needed
+  if (buildingContainer) {
+    buildingContainer.innerHTML = "";
+    buildingContainer.style.display = "none";
+  }
+  if (buildingRowDiv) buildingRowDiv.style.display = "none";
 
   const itemSelect = document.getElementById("craftItem");
   const selectedItem = itemSelect?.value;
@@ -604,15 +655,10 @@ function updateMaterialSelectors() {
   let html = "";
 
   categoryIngredients.forEach((catName) => {
-    const members = categories[catName];
-    const selected = getSelectedMaterial(catName);
-    const options = members
-      .map((m) => `<option value="${m}"${m === selected ? " selected" : ""}>${m}</option>`)
-      .join("");
     html += `
       <div class="material-selector-row">
-        <label><em>${catName}:</em></label>
-        <select onchange="saveMaterialSelection('${catName}', this.value)">${options}</select>
+        <label><em>${escapeHtml(catName)}:</em></label>
+        <select data-action="save-material" data-category-name="${escapeHtml(catName)}">${buildMaterialOptions(catName)}</select>
       </div>
     `;
   });
@@ -623,7 +669,6 @@ function updateMaterialSelectors() {
     (buildingHasVariants || buildingCatIngredients.length > 0)
   ) {
     let buildingHtml = `<div class="building-selector-section">`;
-    const buildingRowDiv = document.getElementById("buildingCraftRow");
     buildingRowDiv.style.display = "block";
 
     if (buildingHasVariants) {
@@ -631,32 +676,27 @@ function updateMaterialSelectors() {
       const validIdx = Math.min(preferredIdx, normalizedBuilding.variants.length - 1);
       const options = normalizedBuilding.variants
         .map(
-          (v, i) => `<option value="${i}"${i === validIdx ? " selected" : ""}>${v.name}</option>`,
+          (v, i) => `<option value="${i}"${i === validIdx ? " selected" : ""}>${escapeHtml(v.name)}</option>`,
         )
         .join("");
       buildingHtml += `
         <div class="material-selector-row">
           <label>Variant:</label>
-          <select onchange="saveBuildingVariantSelection('${buildingName}', this.value)">${options}</select>
+          <select data-action="save-building-variant" data-building-name="${escapeHtml(buildingName)}">${options}</select>
         </div>
       `;
     }
 
     buildingCatIngredients.forEach((catName) => {
-      const members = categories[catName];
-      const selected = getSelectedMaterial(catName);
-      const options = members
-        .map((m) => `<option value="${m}"${m === selected ? " selected" : ""}>${m}</option>`)
-        .join("");
       buildingHtml += `
         <div class="material-selector-row">
-          <label><em>${catName}:</em></label>
-          <select onchange="saveMaterialSelection('${catName}', this.value)">${options}</select>
+          <label><em>${escapeHtml(catName)}:</em></label>
+          <select data-action="save-material" data-category-name="${escapeHtml(catName)}">${buildMaterialOptions(catName)}</select>
         </div>
       `;
     });
 
-    buildingHtml += `<button type="button" class="add-to-queue-btn" onclick="addBuildingToQueue('${buildingName}')">+Add to queue</button>`;
+    buildingHtml += `<button type="button" class="add-to-queue-btn" data-action="add-building-to-queue" data-building-name="${escapeHtml(buildingName)}">+Add to queue</button>`;
     buildingHtml += "</div>";
     buildingContainer.innerHTML = buildingHtml;
     buildingContainer.style.display = "block";
@@ -737,20 +777,20 @@ function updateStoredRecipesList() {
       normalized.variants.forEach((variant, idx) => {
         const ingredients = Object.entries(variant.ingredients)
           .map(([ing, amt]) => {
-            const label = categories[ing] ? `<span class="category-ref">${ing}</span>` : ing;
+            const label = categories[ing] ? `<span class="category-ref">${escapeHtml(ing)}</span>` : escapeHtml(ing);
             return `${amt} x ${label}`;
           })
           .join(", ");
         const byproductEntries = Object.entries(variant.byproducts || {});
-        const byproductsStr = byproductEntries.map(([item, amt]) => `${amt} × ${item}`).join(", ");
+        const byproductsStr = byproductEntries.map(([item, amt]) => `${amt} × ${escapeHtml(item)}`).join(", ");
 
-        const variantLabel = normalized.variants.length > 1 ? `${name} [${variant.name}]` : name;
+        const variantLabel = normalized.variants.length > 1 ? `${escapeHtml(name)} [${escapeHtml(variant.name)}]` : escapeHtml(name);
 
         const buildingStr = variant.building
-          ? `${variant.building}${
+          ? `${escapeHtml(variant.building)}${
               Object.keys(variant.buildingCost || {}).length > 0
                 ? ` (costs: ${Object.entries(variant.buildingCost)
-                    .map(([m, a]) => `${a} × ${m}`)
+                    .map(([m, a]) => `${a} × ${escapeHtml(m)}`)
                     .join(", ")})`
                 : ""
             }`
@@ -778,34 +818,33 @@ function updateStoredRecipesList() {
       const recipe = recipes[name];
       const normalized = normalizeRecipe(recipe);
 
-      const displayName = gameRecipes[name] ? `${name} (Custom)` : name;
+      const displayName = gameRecipes[name] ? `${escapeHtml(name)} (Custom)` : escapeHtml(name);
       const hasConflict = gameRecipes[name];
 
       // Show all variants
       normalized.variants.forEach((variant, idx) => {
         const ingredients = Object.entries(variant.ingredients)
           .map(([ing, amt]) => {
-            const label = categories[ing] ? `<span class="category-ref">${ing}</span>` : ing;
+            const label = categories[ing] ? `<span class="category-ref">${escapeHtml(ing)}</span>` : escapeHtml(ing);
             return `${amt} x ${label}`;
           })
           .join(", ");
         const byproductEntries = Object.entries(variant.byproducts || {});
-        const byproductsStr = byproductEntries.map(([item, amt]) => `${amt} × ${item}`).join(", ");
+        const byproductsStr = byproductEntries.map(([item, amt]) => `${amt} × ${escapeHtml(item)}`).join(", ");
 
         const variantLabel =
-          normalized.variants.length > 1 ? `${displayName} [${variant.name}]` : displayName;
+          normalized.variants.length > 1 ? `${displayName} [${escapeHtml(variant.name)}]` : displayName;
 
         const buildingStr = variant.building
-          ? `${variant.building}${
+          ? `${escapeHtml(variant.building)}${
               Object.keys(variant.buildingCost || {}).length > 0
                 ? ` (costs: ${Object.entries(variant.buildingCost)
-                    .map(([m, a]) => `${a} × ${m}`)
+                    .map(([m, a]) => `${a} × ${escapeHtml(m)}`)
                     .join(", ")})`
                 : ""
             }`
           : "";
 
-        const safeRecipeName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
         html += `
           <div class="recipe-item custom-recipe ${hasConflict ? "conflict-recipe" : ""}">
             <div class="recipe-info">
@@ -816,8 +855,8 @@ function updateStoredRecipesList() {
               ${buildingStr ? `<br><small>Building: ${buildingStr}</small>` : ""}
             </div>
             <div class="item-actions">
-              <button type="button" class="edit-btn" onclick="editRecipe('${safeRecipeName}', ${idx})">Edit</button>
-              <button type="button" class="delete-btn" onclick="deleteRecipe('${safeRecipeName}')">Delete</button>
+              <button type="button" class="edit-btn" data-action="edit-recipe" data-name="${escapeHtml(name)}" data-variant-idx="${idx}">Edit</button>
+              <button type="button" class="delete-btn" data-action="delete-recipe" data-name="${escapeHtml(name)}">Delete</button>
             </div>
           </div>
         `;
@@ -841,8 +880,6 @@ function deleteRecipe(recipeName) {
   updateCraftDropdown();
   updateIngredientDatalist();
   updateStoredRecipesList();
-
-  console.log(`Recipe for "${recipeName}" deleted.`);
 }
 
 function editRecipe(name, variantIdx) {
@@ -934,14 +971,14 @@ async function loadGameRecipes() {
     }
 
     currentGame = selectedGame;
-    statusDiv.innerHTML = `<small>Loaded ${Object.keys(gameRecipes).length} recipes from ${
+    statusDiv.innerHTML = `<small>Loaded ${Object.keys(gameRecipes).length} recipes from ${escapeHtml(
       gameData.gameInfo.name
-    }</small>`;
+    )}</small>`;
     localStorage.setItem("currentGame", currentGame);
 
     updateAllUI();
   } catch (error) {
-    statusDiv.innerHTML = `<small style="color: red;">Error loading recipes: ${error.message}</small>`;
+    statusDiv.innerHTML = `<small style="color: red;">Error loading recipes: ${escapeHtml(error.message)}</small>`;
     console.error("Failed to load game recipes:", error);
   }
 }
@@ -1031,41 +1068,31 @@ function getQueueItemSelectors(item) {
   let html = '<div class="queue-item-selectors">';
 
   categoryIngredients.forEach((catName) => {
-    const members = categories[catName];
-    const selected = getSelectedMaterial(catName);
-    const options = members
-      .map((m) => `<option value="${m}"${m === selected ? " selected" : ""}>${m}</option>`)
-      .join("");
     html += `<div class="material-selector-row">
-      <label><em>${catName}:</em></label>
-      <select onchange="saveMaterialSelection('${catName}', this.value)">${options}</select>
+      <label><em>${escapeHtml(catName)}:</em></label>
+      <select data-action="save-material" data-category-name="${escapeHtml(catName)}">${buildMaterialOptions(catName)}</select>
     </div>`;
   });
 
   if (buildingName && buildingRecipe && (buildingHasVariants || buildingCatIngredients.length > 0)) {
-    html += `<div class="building-selector-section"><span class="building-selector-label">Building: ${buildingName}</span>`;
+    html += `<div class="building-selector-section"><span class="building-selector-label">Building: ${escapeHtml(buildingName)}</span>`;
 
     if (buildingHasVariants) {
       const preferredIdx = variantPreferences[buildingName] || 0;
       const validIdx = Math.min(preferredIdx, normalizedBuilding.variants.length - 1);
       const options = normalizedBuilding.variants
-        .map((v, i) => `<option value="${i}"${i === validIdx ? " selected" : ""}>${v.name}</option>`)
+        .map((v, i) => `<option value="${i}"${i === validIdx ? " selected" : ""}>${escapeHtml(v.name)}</option>`)
         .join("");
       html += `<div class="material-selector-row">
         <label>Variant:</label>
-        <select onchange="saveBuildingVariantSelection('${buildingName}', this.value)">${options}</select>
+        <select data-action="save-building-variant" data-building-name="${escapeHtml(buildingName)}">${options}</select>
       </div>`;
     }
 
     buildingCatIngredients.forEach((catName) => {
-      const members = categories[catName];
-      const selected = getSelectedMaterial(catName);
-      const options = members
-        .map((m) => `<option value="${m}"${m === selected ? " selected" : ""}>${m}</option>`)
-        .join("");
       html += `<div class="material-selector-row">
-        <label><em>${catName}:</em></label>
-        <select onchange="saveMaterialSelection('${catName}', this.value)">${options}</select>
+        <label><em>${escapeHtml(catName)}:</em></label>
+        <select data-action="save-material" data-category-name="${escapeHtml(catName)}">${buildMaterialOptions(catName)}</select>
       </div>`;
     });
 
@@ -1095,7 +1122,7 @@ function renderQueue() {
     html += `
       <div class="queue-item">
         <div class="queue-item-main">
-          <span class="queue-item-label">${qty} &times; ${item}</span>
+          <span class="queue-item-label">${qty} &times; ${escapeHtml(item)}</span>
           <button type="button" class="delete-btn" onclick="removeFromQueue(${index})">Remove</button>
         </div>
         ${selectors}
@@ -1204,7 +1231,7 @@ function calculate() {
   for (const [name, qty] of Object.entries(leafTotals)) {
     html += `<div class="material-tile">
       <div class="material-qty">${qty}</div>
-      <div class="material-name">${name}</div>
+      <div class="material-name">${escapeHtml(name)}</div>
     </div>`;
   }
   html += `</div></div>`;
@@ -1217,7 +1244,7 @@ function calculate() {
     for (const [name, qty] of Object.entries(byproductTotals)) {
       html += `<div class="material-tile byproduct-tile">
         <div class="material-qty">+${qty}</div>
-        <div class="material-name">${name}</div>
+        <div class="material-name">${escapeHtml(name)}</div>
       </div>`;
     }
     html += `</div></div>`;
@@ -1253,13 +1280,13 @@ function calculate() {
       const bpEntries = Object.entries(info.byproducts);
       const bpStr =
         bpEntries.length > 0
-          ? bpEntries.map(([k, v]) => `${v} &times; ${k}`).join(", ")
+          ? bpEntries.map(([k, v]) => `${v} &times; ${escapeHtml(k)}`).join(", ")
           : "&#8212;";
       const buildingStr = info.building
-        ? `<span class="building-info">${info.building}</span>`
+        ? `<span class="building-info">${escapeHtml(info.building)}</span>`
         : "&#8212;";
       html += `<tr>
-        <td>${mat}</td>
+        <td>${escapeHtml(mat)}</td>
         <td class="mono">${info.crafts}</td>
         <td class="mono">${info.produced}</td>
         <td class="mono">${leftoverCell}</td>
@@ -1278,14 +1305,13 @@ function calculate() {
       <div class="collapse-content buildings-list">`;
     for (const [bldg, cost] of Object.entries(buildings)) {
       const costStr = Object.entries(cost)
-        .map(([mat, amt]) => `${amt} &times; ${mat}`)
+        .map(([mat, amt]) => `${amt} &times; ${escapeHtml(mat)}`)
         .join(", ");
-      const safeName = bldg.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
       const addBtn = allRecipes[bldg]
-        ? `<button type="button" class="add-to-queue-btn" onclick="addBuildingToQueue('${safeName}')">+Add to queue</button>`
+        ? `<button type="button" class="add-to-queue-btn" data-action="add-building-to-queue" data-building-name="${escapeHtml(bldg)}">+Add to queue</button>`
         : "";
       html += `<div class="building-row">
-        <strong>${bldg}</strong>
+        <strong>${escapeHtml(bldg)}</strong>
         ${costStr ? `<span class="building-cost">${costStr}</span>` : ""}
         ${addBtn}
       </div>`;
@@ -1302,7 +1328,7 @@ function calculate() {
     if (tree.crafts > 0) {
       const excess = tree.qty - tree.requestedQty;
       html += `<div class="batch-header">
-        <strong>${queue[i].item}</strong>
+        <strong>${escapeHtml(queue[i].item)}</strong>
         &nbsp; Requested: ${tree.requestedQty} &rarr; Will produce: ${tree.qty} (${tree.crafts} &times; ${tree.produces})`;
       if (excess > 0) {
         html += ` <span class="excess">+${excess} extra</span>`;
@@ -1438,14 +1464,14 @@ function formatTime(hours) {
 function renderTree(node) {
   // For intermediates show actual demand (requestedQty); for leaves qty === requestedQty anyway
   const displayQty = node.crafts > 0 ? node.requestedQty : node.qty;
-  let html = `<li>${displayQty} × ${node.name}`;
+  let html = `<li>${displayQty} × ${escapeHtml(node.name)}`;
 
   if (node.variantName && node.variantName !== "Default") {
-    html += ` <span class="variant-info">[${node.variantName}]</span>`;
+    html += ` <span class="variant-info">[${escapeHtml(node.variantName)}]</span>`;
   }
 
   if (node.building) {
-    html += ` <span class="building-info">[${node.building}]</span>`;
+    html += ` <span class="building-info">[${escapeHtml(node.building)}]</span>`;
   }
 
   if (node.children.length > 0) {
