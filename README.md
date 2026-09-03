@@ -45,10 +45,13 @@ Recipe packs live in the `recipes/` directory as `.json` files. Format:
 ```json
 {
   "gameInfo": { "name": "...", "version": "1.0.0", "description": "..." },
+  "categories": {
+    "Refined Metal": ["Copper", "Gold"]
+  },
   "recipes": {
     "Item Name": {
       "produces": 1,
-      "ingredients": { "Material": 5 },
+      "ingredients": { "Refined Metal": 5 },
       "byproducts": { "Waste": 1 },
       "building": "Furnace",
       "buildingCost": { "Metal": 100 },
@@ -57,6 +60,11 @@ Recipe packs live in the `recipes/` directory as `.json` files. Format:
   }
 }
 ```
+
+A pack can ship its own **`categories`** (interchangeable-material groups). They
+load with the pack, resolve category ingredients in its recipes, and appear
+read-only under **Material Categories** on the Setup tab. Your own categories
+override a pack's on a name clash.
 
 Recipes can also use a `variants` array for items with multiple crafting methods. Use **Export My Recipes** on the Setup tab to create a pack file from your custom recipes — the downloaded file can be dropped into `recipes/` and loaded via the UI.
 

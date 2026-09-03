@@ -17,7 +17,8 @@ let byproductCount = 0;
 let buildingCostCount = 0;
 let categoryMemberCount = 0;
 const variantPreferences = {}; // Stores selected variant index per recipe: { "RecipeName": 0 }
-const categories = {}; // { categoryName: string[] }
+const categories = {}; // { categoryName: string[] } — user-defined, persisted
+const gameCategories = {}; // { categoryName: string[] } — provided by the loaded recipe pack
 const materialPreferences = {}; // { categoryName: specificMaterial } — global fallback
 const materialChoice = {}; // { "consumingItem|categoryName": material } — per-recipe choice
 let queue = []; // { item: string, qty: number }[]
@@ -311,28 +312,52 @@ function updateStoredCategoriesList() {
   const container = document.getElementById("storedCategories");
   if (!container) return;
 
-  const names = Object.keys(categories);
-  if (names.length === 0) {
+  // Pack categories are shown read-only; only names NOT overridden by a user
+  // category (which is rendered in the editable list below).
+  const gameNames = Object.keys(gameCategories).filter((n) => !categories[n]);
+  const userNames = Object.keys(categories);
+
+  if (gameNames.length === 0 && userNames.length === 0) {
     container.innerHTML = "<p>No categories defined.</p>";
     return;
   }
 
   let html = "<div class='recipes-list'>";
-  for (let name of names) {
-    const members = categories[name];
-    html += `
-      <div class="recipe-item custom-recipe">
-        <div class="recipe-info">
-          <strong>${escapeHtml(name)}</strong>
-          <br><small>${escapeHtml(members.join(", "))}</small>
+
+  if (gameNames.length > 0) {
+    html += `<h4>Pack Categories (${gameNames.length})</h4>`;
+    for (const name of gameNames) {
+      html += `
+        <div class="recipe-item game-recipe">
+          <div class="recipe-info">
+            <strong>${escapeHtml(name)}</strong>
+            <br><small>${escapeHtml(gameCategories[name].join(", "))}</small>
+          </div>
+          <span class="recipe-source">Pack</span>
         </div>
-        <div class="item-actions">
-          <button type="button" class="edit-btn" data-action="edit-category" data-name="${escapeHtml(name)}">Edit</button>
-          <button type="button" class="delete-btn" data-action="delete-category" data-name="${escapeHtml(name)}">Delete</button>
-        </div>
-      </div>
-    `;
+      `;
+    }
   }
+
+  if (userNames.length > 0) {
+    if (gameNames.length > 0) html += `<h4>Custom Categories (${userNames.length})</h4>`;
+    for (const name of userNames) {
+      const members = categories[name];
+      html += `
+        <div class="recipe-item custom-recipe">
+          <div class="recipe-info">
+            <strong>${escapeHtml(name)}</strong>
+            <br><small>${escapeHtml(members.join(", "))}</small>
+          </div>
+          <div class="item-actions">
+            <button type="button" class="edit-btn" data-action="edit-category" data-name="${escapeHtml(name)}">Edit</button>
+            <button type="button" class="delete-btn" data-action="delete-category" data-name="${escapeHtml(name)}">Delete</button>
+          </div>
+        </div>
+      `;
+    }
+  }
+
   html += "</div>";
   container.innerHTML = html;
 }
@@ -343,7 +368,7 @@ function updateStoredCategoriesList() {
 function engineCtx() {
   return {
     allRecipes: getAllRecipes(),
-    categories,
+    categories: getAllCategories(),
     materialChoice,
     materialPreferences,
     variantPreferences,
@@ -357,7 +382,7 @@ const normalizeRecipe = (recipe) => CraftEngine.normalizeRecipe(recipe);
 const getSelectedVariant = (recipeName, recipe) =>
   CraftEngine.getSelectedVariant(recipeName, recipe, variantPreferences);
 const getSelectedMaterial = (categoryName) =>
-  CraftEngine.getSelectedMaterial(categoryName, categories, materialPreferences);
+  CraftEngine.getSelectedMaterial(categoryName, getAllCategories(), materialPreferences);
 const hasCircularDependency = (itemName, recipeSet, visited) =>
   CraftEngine.hasCircularDependency(itemName, recipeSet, visited);
 const expand = (item, qty) => CraftEngine.expand(item, qty, engineCtx());
@@ -593,7 +618,7 @@ function updateBuildingIndicator() {
 // ======= Build Material Option Elements =======
 function buildMaterialOptions(catName, consumingItem) {
   const selected = getSelectedMaterialFor(consumingItem, catName);
-  return categories[catName]
+  return (getAllCategories()[catName] || [])
     .map((m) => `<option value="${escapeHtml(m)}"${m === selected ? " selected" : ""}>${escapeHtml(m)}</option>`)
     .join("");
 }
@@ -628,7 +653,7 @@ function updateMaterialSelectors() {
   }
 
   const variant = getSelectedVariant(selectedItem, recipe);
-  const categoryIngredients = Object.keys(variant.ingredients).filter((ing) => categories[ing]);
+  const categoryIngredients = Object.keys(variant.ingredients).filter((ing) => getAllCategories()[ing]);
 
   const buildingName = variant.building;
   const buildingRecipe = buildingName ? allRecipes[buildingName] : null;
@@ -636,7 +661,7 @@ function updateMaterialSelectors() {
   const buildingHasVariants = normalizedBuilding && normalizedBuilding.variants.length > 1;
   const buildingVariant = buildingRecipe ? getSelectedVariant(buildingName, buildingRecipe) : null;
   const buildingCatIngredients = buildingVariant
-    ? Object.keys(buildingVariant.ingredients).filter((ing) => categories[ing])
+    ? Object.keys(buildingVariant.ingredients).filter((ing) => getAllCategories()[ing])
     : [];
 
   if (
@@ -720,7 +745,7 @@ function updateIngredientDatalist() {
 
   const allRecipes = getAllRecipes();
   const recipeNames = new Set(Object.keys(allRecipes));
-  const categoryNames = new Set(Object.keys(categories).filter((c) => !recipeNames.has(c)));
+  const categoryNames = new Set(Object.keys(getAllCategories()).filter((c) => !recipeNames.has(c)));
   const otherNames = new Set();
 
   for (let recipeName in allRecipes) {
@@ -774,7 +799,7 @@ function updateStoredRecipesList() {
       normalized.variants.forEach((variant, idx) => {
         const ingredients = Object.entries(variant.ingredients)
           .map(([ing, amt]) => {
-            const label = categories[ing] ? `<span class="category-ref">${escapeHtml(ing)}</span>` : escapeHtml(ing);
+            const label = getAllCategories()[ing] ? `<span class="category-ref">${escapeHtml(ing)}</span>` : escapeHtml(ing);
             return `${amt} x ${label}`;
           })
           .join(", ");
@@ -822,7 +847,7 @@ function updateStoredRecipesList() {
       normalized.variants.forEach((variant, idx) => {
         const ingredients = Object.entries(variant.ingredients)
           .map(([ing, amt]) => {
-            const label = categories[ing] ? `<span class="category-ref">${escapeHtml(ing)}</span>` : escapeHtml(ing);
+            const label = getAllCategories()[ing] ? `<span class="category-ref">${escapeHtml(ing)}</span>` : escapeHtml(ing);
             return `${amt} x ${label}`;
           })
           .join(", ");
@@ -951,8 +976,9 @@ async function loadGameRecipes() {
   const selectedGame = gameSelect.value;
 
   if (!selectedGame) {
-    // Clear game recipes and use only custom recipes
+    // Clear game recipes and categories; use only custom data
     Object.keys(gameRecipes).forEach((key) => delete gameRecipes[key]);
+    Object.keys(gameCategories).forEach((key) => delete gameCategories[key]);
     localStorage.removeItem("currentGame");
     currentGame = null;
     statusDiv.innerHTML = "<small>Custom recipes only</small>";
@@ -970,8 +996,16 @@ async function loadGameRecipes() {
 
     const gameData = await response.json();
 
-    // Clear existing game recipes and load new ones
+    // Clear existing game recipes/categories and load new ones
     Object.keys(gameRecipes).forEach((key) => delete gameRecipes[key]);
+    Object.keys(gameCategories).forEach((key) => delete gameCategories[key]);
+
+    // Load pack-provided material categories (used to resolve category ingredients)
+    if (gameData.categories && typeof gameData.categories === "object") {
+      for (const [name, members] of Object.entries(gameData.categories)) {
+        if (Array.isArray(members)) gameCategories[name] = members;
+      }
+    }
 
     // Load game recipes (preserve variant structure or convert single recipes)
     for (let [name, recipe] of Object.entries(gameData.recipes)) {
@@ -1011,6 +1045,9 @@ function updateAllUI() {
   updateIngredientDatalist();
   updateStoredRecipesList();
   updateStoredCategoriesList();
+  // Re-render the queue so category material selectors reflect a newly loaded
+  // pack's categories (the queue may have rendered before the pack finished).
+  renderQueue();
 }
 
 // ======= Get All Recipes (Combined) =======
@@ -1034,6 +1071,12 @@ function getAllRecipes() {
   }
 
   return combined;
+}
+
+// Combined category view: pack-provided categories plus user categories,
+// with user definitions overriding the pack on name conflicts.
+function getAllCategories() {
+  return { ...gameCategories, ...categories };
 }
 
 // ======= Queue Management =======
@@ -1121,7 +1164,7 @@ function getQueueItemSelectors(item) {
   if (!recipe) return "";
 
   const variant = getSelectedVariant(item, recipe);
-  const categoryIngredients = Object.keys(variant.ingredients).filter((ing) => categories[ing]);
+  const categoryIngredients = Object.keys(variant.ingredients).filter((ing) => getAllCategories()[ing]);
 
   const buildingName = variant.building;
   const buildingRecipe = buildingName ? allRecipes[buildingName] : null;
@@ -1129,7 +1172,7 @@ function getQueueItemSelectors(item) {
   const buildingHasVariants = normalizedBuilding && normalizedBuilding.variants.length > 1;
   const buildingVariant = buildingRecipe ? getSelectedVariant(buildingName, buildingRecipe) : null;
   const buildingCatIngredients = buildingVariant
-    ? Object.keys(buildingVariant.ingredients).filter((ing) => categories[ing])
+    ? Object.keys(buildingVariant.ingredients).filter((ing) => getAllCategories()[ing])
     : [];
 
   if (categoryIngredients.length === 0 && !buildingHasVariants && buildingCatIngredients.length === 0) {
