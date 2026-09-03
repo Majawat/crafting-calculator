@@ -6,7 +6,8 @@ This project runs entirely client‑side (HTML, CSS, JavaScript) — no backend,
 
 ## Features
 
-* Add recipes on the fly (name, quantity produced, ingredients, byproducts, building costs)
+* Add recipes on the fly (inputs, outputs incl. co-products, machine, time)
+* **Display units** — packs can label items (e.g. kg) shown next to quantities
 * **Recipe variants** — define multiple crafting methods for the same item; the calculator uses your preferred variant
 * **Material categories** — group interchangeable materials (e.g. "Refined Metal" → Copper, Aluminum…) and pick which one to use **per recipe** (build one thing from Copper and another from Aluminum, both drawing on the same category)
 * **Multi-item queue** — queue up several items at once; the calculator finds the globally optimal batch counts across all of them
@@ -35,39 +36,51 @@ This project runs entirely client‑side (HTML, CSS, JavaScript) — no backend,
 * **Results** — shows Materials Needed (leaf resources), Byproducts, Buildings Needed, Total Crafting Time, a **Combined Crafting** section for intermediates, and a per-item Breakdown.
 
 ### Setup
-* **Add Recipe** — define item name, ingredients (with amounts), quantity produced, optional byproducts, and optional building + building cost.
+* **Add Recipe** — define item name, inputs (with amounts), quantity produced, optional co-products, optional machine, and optional time.
 * **Material Categories** — group interchangeable materials under a category name. Recipes can list the category name as an ingredient; the calculator resolves it to the selected material at calculation time.
 * **Stored Recipes** — load a game recipe pack, browse saved custom recipes, **Export My Recipes** to download your custom recipes as a shareable `.json` file, or **Clear All Data** to wipe everything from localStorage.
 
 ## Recipe Packs
 
-Recipe packs live in the `recipes/` directory as `.json` files. Format:
+Recipe packs live in the `recipes/` directory as `.json` files, in **schema v2**:
 
 ```json
 {
-  "gameInfo": { "name": "...", "version": "1.0.0", "description": "..." },
+  "schemaVersion": 2,
+  "gameInfo": { "name": "...", "gameVersion": "...", "description": "..." },
+  "settings": { "byproductsAsSupply": false },
   "categories": {
     "Refined Metal": ["Copper", "Gold"]
   },
+  "items": {
+    "Copper Ore": { "unit": "kg", "raw": true, "group": "Ores" }
+  },
   "recipes": {
     "Item Name": {
-      "produces": 1,
-      "ingredients": { "Refined Metal": 5 },
-      "byproducts": { "Waste": 1 },
-      "building": "Furnace",
-      "buildingCost": { "Metal": 100 },
-      "metadata": { "craftingTime": 2, "station": "Furnace" }
+      "inputs": { "Refined Metal": 5 },
+      "outputs": { "Item Name": 1, "Waste": 1 },
+      "machine": "Furnace",
+      "time": 2
     }
   }
 }
 ```
 
-A pack can ship its own **`categories`** (interchangeable-material groups). They
-load with the pack, resolve category ingredients in its recipes, and appear
-read-only under **Material Categories** on the Setup tab. Your own categories
-override a pack's on a name clash.
+A recipe is a net-flow node:
 
-Recipes can also use a `variants` array for items with multiple crafting methods. Use **Export My Recipes** on the Setup tab to create a pack file from your custom recipes — the downloaded file can be dropped into `recipes/` and loaded via the UI.
+* **`inputs`** — what it consumes. A category name resolves to the chosen material.
+* **`outputs`** — everything it produces. The recipe's **key is its primary output**; any others are co-products. (A recipe with no `inputs` is an extractor/source.)
+* **`machine`** — the required structure. Its build cost is just its own recipe.
+* **`time`** — seconds per run. Optional: `power`, `yield` (an efficiency/expected-value multiplier).
+* Multiple crafting methods → a **`variants`** array of the above (each with a `name`).
+
+Pack-level blocks:
+
+* **`categories`** — interchangeable-material groups. They load with the pack, resolve category inputs, and appear read-only under **Material Categories** on the Setup tab. Your own categories override a pack's on a name clash.
+* **`items`** — optional metadata for any item (especially raws): `unit` (a **display-only** label — units never convert), `raw`, `group`, `displayName`.
+* **`settings`** — per-pack defaults (e.g. `byproductsAsSupply`).
+
+Use **Export My Recipes** on the Setup tab to create a pack file from your custom recipes — drop the download into `recipes/` and load it via the UI.
 
 ### Registering a pack
 

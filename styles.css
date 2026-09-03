@@ -316,6 +316,12 @@ button:hover {
   color: var(--ink);
 }
 
+.material-unit {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
 .material-name {
   font-size: 0.8rem;
   color: var(--ink-3);

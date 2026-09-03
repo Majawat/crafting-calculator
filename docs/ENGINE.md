@@ -127,7 +127,13 @@ rewrite.
   category)` material assignments, `onHand`/`yieldMultiplier` in the engine.
   `byproductsAsSupply` off by default (parity + the batch-rounding fix).
 - **Phase 2** *(done)* — inventory UI (`onHand` input) + surplus display.
-- **Phase 3** *(this)* — byproducts-as-supply toggle in the UI (engine fixpoint
-  already present). Per-pack default flag still TODO.
+- **Phase 3** *(done)* — byproducts-as-supply toggle in the UI (engine fixpoint
+  already present) + per-pack default via `settings.byproductsAsSupply`.
+- **Schema v2** *(done)* — packs and the internal model use canonical
+  `inputs` / `outputs` (all outputs; primary = the recipe key) / `machine` /
+  `time` / `power` / `yield`, plus pack-level `items` (display-only `unit`,
+  `raw`, `group`) and `settings`. No backwards-compatibility with the old
+  `produces` / `ingredients` / `byproducts` / `building` fields. See the README
+  for the authoring format.
 - **Phase 4** — graph/DAG view + efficiency exposure.
 - **Phase 5** *(optional)* — rate mode; then alternate-recipe optimization (LP).
