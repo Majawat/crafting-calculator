@@ -22,6 +22,7 @@ const materialPreferences = {}; // { categoryName: specificMaterial } — global
 const materialChoice = {}; // { "consumingItem|categoryName": material } — per-recipe choice
 let queue = []; // { item: string, qty: number }[]
 const onHand = {}; // { item: amount } — inventory already on hand, offsets demand
+let byproductsAsSupply = false; // when true, co-products offset demand for those items
 
 // ======= Load recipes from LocalStorage on page load =======
 window.addEventListener("DOMContentLoaded", async () => {
@@ -62,6 +63,9 @@ window.addEventListener("DOMContentLoaded", async () => {
   if (savedOnHand) {
     Object.assign(onHand, JSON.parse(savedOnHand));
   }
+  byproductsAsSupply = localStorage.getItem("byproductsAsSupply") === "true";
+  const bpToggle = document.getElementById("byproductsAsSupply");
+  if (bpToggle) bpToggle.checked = byproductsAsSupply;
 
   updateCraftDropdown();
   updateIngredientDatalist();
@@ -349,7 +353,7 @@ function engineCtx() {
     variantPreferences,
     onHand,
     mode: "batch",
-    byproductsAsSupply: false,
+    byproductsAsSupply,
   };
 }
 
@@ -1115,6 +1119,17 @@ function clearOnHand() {
   renderOnHandFields();
 }
 
+// ======= Byproducts-as-supply toggle =======
+function toggleByproductsAsSupply() {
+  const el = document.getElementById("byproductsAsSupply");
+  byproductsAsSupply = !!el?.checked;
+  localStorage.setItem("byproductsAsSupply", String(byproductsAsSupply));
+  // Re-run immediately if results are already on screen, so the toggle feels live.
+  if (queue.length > 0 && document.querySelector("#results .results-section")) {
+    calculate();
+  }
+}
+
 function getQueueItemSelectors(item) {
   const allRecipes = getAllRecipes();
   const recipe = allRecipes[item];
@@ -1485,6 +1500,7 @@ function clearAllData() {
     "materialPreferences",
     "materialChoice",
     "onHand",
+    "byproductsAsSupply",
   ].forEach((k) => localStorage.removeItem(k));
   location.reload();
 }

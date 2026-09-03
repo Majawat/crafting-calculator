@@ -725,6 +725,21 @@ ul.tree-list ul.tree-list {
   color: var(--ink-3);
 }
 
+/* ======= Option toggle ======= */
+.option-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--ink-3);
+  margin: 0.5rem 0;
+  cursor: pointer;
+}
+
+.option-toggle input {
+  cursor: pointer;
+}
+
 /* ======= On-hand inventory ======= */
 .card-hint {
   font-size: 0.8rem;
