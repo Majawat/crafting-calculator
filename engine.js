@@ -31,7 +31,10 @@
 
   // ---- Recipe shape helpers ------------------------------------------------
 
-  // Normalize a recipe to always expose a `variants` array.
+  // Normalize a recipe to always expose a `variants` array. A recipe is either
+  // `{ variants: [...] }` or a single flat variant. Each variant carries schema
+  // v2 fields: inputs, outputs (all outputs; primary = the recipe key), machine,
+  // time, power, yield.
   function normalizeRecipe(recipe) {
     if (recipe.variants) {
       return recipe; // Already in variants format
@@ -40,12 +43,12 @@
       variants: [
         {
           name: "Default",
-          produces: recipe.produces,
-          byproducts: recipe.byproducts || {},
-          ingredients: recipe.ingredients,
-          building: recipe.building || null,
-          buildingCost: recipe.buildingCost || {},
-          metadata: recipe.metadata || {},
+          inputs: recipe.inputs || {},
+          outputs: recipe.outputs || {},
+          machine: recipe.machine || null,
+          time: recipe.time || 0,
+          power: recipe.power || 0,
+          yield: recipe.yield ?? 1,
         },
       ],
     };
@@ -88,7 +91,7 @@
     visited.add(itemName);
     const normalized = normalizeRecipe(recipe);
     for (const variant of normalized.variants) {
-      for (const ingredient in variant.ingredients) {
+      for (const ingredient in variant.inputs) {
         if (hasCircularDependency(ingredient, recipeSet, visited)) return true;
       }
     }
@@ -111,18 +114,24 @@
       }
       const v = getSelectedVariant(item, recipe, ctx.variantPreferences);
       const inputs = {};
-      for (const [ing, amt] of Object.entries(v.ingredients || {})) {
+      for (const [ing, amt] of Object.entries(v.inputs || {})) {
         const mat = resolveMaterial(item, ing, ctx);
-        inputs[mat] = (inputs[mat] || 0) + amt; // two ingredients may resolve to one material
+        inputs[mat] = (inputs[mat] || 0) + amt; // two inputs may resolve to one material
+      }
+      // Primary output is the item this recipe is keyed under; the rest are
+      // co-products (byproducts).
+      const outputs = v.outputs || {};
+      const byproducts = {};
+      for (const [out, amt] of Object.entries(outputs)) {
+        if (out !== item) byproducts[out] = amt;
       }
       concrete[item] = {
-        produces: v.produces,
+        produces: outputs[item] ?? 1,
         inputs,
-        byproducts: v.byproducts || {},
-        building: v.building || null,
-        buildingCost: v.buildingCost || {},
-        time: v.metadata?.craftingTime || 0,
-        yieldMultiplier: v.yieldMultiplier ?? 1,
+        byproducts,
+        machine: v.machine || null,
+        time: v.time || 0,
+        yieldMultiplier: v.yield ?? 1,
       };
       for (const mat of Object.keys(inputs)) visit(mat);
     }
@@ -198,8 +207,7 @@
         produced: producedQty,
         leftover: producedQty - eff,
         byproducts: scaledByproducts,
-        building: c.building,
-        buildingCost: c.buildingCost,
+        machine: c.machine,
         craftingTime: c.time * crafts,
       };
 
@@ -249,8 +257,8 @@
       for (const [bp, amt] of Object.entries(info.byproducts)) {
         byproductTotals[bp] = (byproductTotals[bp] || 0) + amt;
       }
-      if (info.crafts > 0 && info.building && !buildings[info.building]) {
-        buildings[info.building] = info.buildingCost || {};
+      if (info.crafts > 0 && info.machine && !buildings[info.machine]) {
+        buildings[info.machine] = {};
       }
       totalTime += info.craftingTime;
       if (!info.isQueueItem) intermediateBatches[item] = info;
@@ -298,45 +306,45 @@
     return true;
   }
 
-  // Backwards-compatible name: the app calls computeGlobalNeeds(queue, ctx).
+  // The app calls computeGlobalNeeds(queue, ctx).
   const computeGlobalNeeds = solve;
 
   // ---- Per-item tree (breakdown view) -------------------------------------
-  // Unchanged model, but resolves categories per-consuming-recipe like the
-  // solver. Used only for the human-readable per-item breakdown.
+  // Resolves categories per-consuming-recipe like the solver. Used only for the
+  // human-readable per-item breakdown.
   function expand(item, qty, ctx) {
     const allRecipes = ctx.allRecipes;
     if (!allRecipes[item]) {
       return {
         name: item, qty, requestedQty: qty, crafts: 0, produces: 1,
-        byproducts: {}, building: null, buildingCost: {}, children: [],
+        byproducts: {}, machine: null, children: [],
         craftingTime: 0, variantName: null,
       };
     }
     const recipe = allRecipes[item];
     const variant = getSelectedVariant(item, recipe, ctx.variantPreferences);
-    const { produces, ingredients, metadata, building, buildingCost } = variant;
+    const inputs = variant.inputs || {};
+    const outputs = variant.outputs || {};
+    const produces = outputs[item] ?? 1;
     const crafts = Math.ceil(qty / produces);
     const actualQty = crafts * produces;
-    const baseTime = metadata?.craftingTime || 0;
 
     const scaledByproducts = {};
-    for (const [bpItem, bpAmt] of Object.entries(variant.byproducts || {})) {
-      scaledByproducts[bpItem] = bpAmt * crafts;
+    for (const [out, amt] of Object.entries(outputs)) {
+      if (out !== item) scaledByproducts[out] = amt * crafts;
     }
 
     const children = [];
-    for (const ing in ingredients) {
-      const need = ingredients[ing] * crafts;
+    for (const ing in inputs) {
+      const need = inputs[ing] * crafts;
       const ingredientName = resolveMaterial(item, ing, ctx);
       children.push(expand(ingredientName, need, ctx));
     }
 
     return {
       name: item, qty: actualQty, requestedQty: qty, crafts, produces,
-      byproducts: scaledByproducts, building: building || null,
-      buildingCost: buildingCost || {}, children,
-      craftingTime: baseTime * crafts, variantName: variant.name,
+      byproducts: scaledByproducts, machine: variant.machine || null, children,
+      craftingTime: (variant.time || 0) * crafts, variantName: variant.name,
     };
   }
 

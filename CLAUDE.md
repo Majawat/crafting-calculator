@@ -26,8 +26,9 @@ Run `node --test` (or `npm test`). The engine is pure, so tests need no DOM/buil
 - `recipes` object: In-memory storage of custom recipes, persisted to localStorage
 - `gameRecipes` object: In-memory storage of loaded game recipe packs
 - `variantPreferences` object: Stores user's selected variant per recipe, persisted to localStorage
-- Recipe format (single): `{ produces: number, ingredients: { [name]: amount }, metadata?: {...} }`
-- Recipe format (variants): `{ variants: [{ name: string, produces: number, ingredients: {...}, metadata?: {...} }] }`
+- Recipe format (schema v2, single): `{ inputs: { [name]: amount }, outputs: { [name]: amount }, machine?: string, time?: number, power?: number, yield?: number }` — `outputs` lists ALL outputs; the recipe's key is its primary output, the rest are co-products.
+- Recipe format (variants): `{ variants: [{ name: string, inputs: {...}, outputs: {...}, machine?, time? }] }`
+- Packs also carry `schemaVersion: 2`, `gameInfo`, optional `categories`, `items` (per-item metadata incl. display-only `unit`), and `settings`. No backwards-compatibility with the pre-v2 `produces`/`ingredients`/`byproducts`/`building` fields.
 - Tree structure: Recursive expansion creates `{ name, qty, children[], variantName, ... }` nodes
 
 ### Recipe Variants

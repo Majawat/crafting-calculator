@@ -14,11 +14,11 @@ const gameRecipes = {};
 let currentGame = null;
 let ingredientCount = 0;
 let byproductCount = 0;
-let buildingCostCount = 0;
 let categoryMemberCount = 0;
 const variantPreferences = {}; // Stores selected variant index per recipe: { "RecipeName": 0 }
 const categories = {}; // { categoryName: string[] } — user-defined, persisted
 const gameCategories = {}; // { categoryName: string[] } — provided by the loaded recipe pack
+const gameItems = {}; // { itemName: { unit?, raw?, group?, displayName? } } — from the pack
 const materialPreferences = {}; // { categoryName: specificMaterial } — global fallback
 const materialChoice = {}; // { "consumingItem|categoryName": material } — per-recipe choice
 let queue = []; // { item: string, qty: number }[]
@@ -174,7 +174,7 @@ function addByproductField() {
     >
     <input
       list="ingredientList"
-      placeholder="Byproduct name"
+      placeholder="Co-product name"
       class="byproduct-name"
       name="byproductName_${byproductCount}"
       id="byproductName_${byproductCount}"
@@ -187,41 +187,6 @@ function addByproductField() {
 }
 
 function removeByproductField(button) {
-  button.parentElement.remove();
-}
-
-function addBuildingCostField() {
-  const container = document.getElementById("buildingCost");
-  if (!container) return;
-  const div = document.createElement("div");
-  div.classList.add("building-cost-row");
-
-  div.innerHTML = `
-    <input
-      type="number"
-      placeholder="Amount"
-      min="0"
-      step="any"
-      value="1"
-      class="building-cost-amount"
-      name="buildingCostAmount_${buildingCostCount}"
-      id="buildingCostAmount_${buildingCostCount}"
-    >
-    <input
-      list="ingredientList"
-      placeholder="Material name"
-      class="building-cost-material"
-      name="buildingCostMaterial_${buildingCostCount}"
-      id="buildingCostMaterial_${buildingCostCount}"
-    >
-    <button type="button" class="delete-btn" onclick="removeBuildingCostField(this)">x</button>
-  `;
-
-  buildingCostCount++;
-  container.appendChild(div);
-}
-
-function removeBuildingCostField(button) {
   button.parentElement.remove();
 }
 
@@ -424,60 +389,43 @@ function setVariantPreference(recipeName, variantIndex) {
 function addRecipe() {
   const name = document.getElementById("itemName").value.trim();
   const variantName = document.getElementById("variantName").value.trim() || "Default";
-  const produces = parseInt(document.getElementById("produces").value, 10);
-  const ingredientDivs = document.querySelectorAll("#ingredients .ingredient");
-  const ingredients = {};
+  const produces = parseInt(document.getElementById("produces").value, 10) || 1;
+  const time = parseFloat(document.getElementById("recipeTime").value) || 0;
 
-  ingredientDivs.forEach((div) => {
+  const inputs = {};
+  document.querySelectorAll("#ingredients .ingredient").forEach((div) => {
     const ingName = div.querySelector(".ingredient-name").value.trim();
     const ingAmt = parseInt(div.querySelector(".ingredient-amount").value, 10);
-    if (ingName && ingAmt > 0) {
-      ingredients[ingName] = ingAmt;
-    }
+    if (ingName && ingAmt > 0) inputs[ingName] = ingAmt;
   });
 
-  const byproductDivs = document.querySelectorAll("#byproducts .byproduct");
-  const byproducts = {};
-  byproductDivs.forEach((div) => {
+  // Co-products entered in the "byproducts" fields become additional outputs.
+  const outputs = { [name]: produces };
+  document.querySelectorAll("#byproducts .byproduct").forEach((div) => {
     const bpName = div.querySelector(".byproduct-name").value.trim();
     const bpAmt = parseInt(div.querySelector(".byproduct-amount").value, 10);
-    if (bpName && bpAmt > 0) {
-      byproducts[bpName] = bpAmt;
-    }
+    if (bpName && bpAmt > 0) outputs[bpName] = bpAmt;
   });
 
   if (!name) {
     document.getElementById("itemName").focus();
     return alert("Item name required");
   }
-  if (Object.keys(ingredients).length === 0) return alert("At least one ingredient required");
+  if (Object.keys(inputs).length === 0) return alert("At least one input required");
 
   // Check for circular dependencies before saving
-  const tempRecipes = { ...getAllRecipes(), [name]: { produces, ingredients } };
+  const tempRecipes = { ...getAllRecipes(), [name]: { outputs, inputs } };
   if (hasCircularDependency(name, tempRecipes)) {
     return alert(`Cannot save recipe: "${name}" would create a circular dependency`);
   }
 
-  const building = document.getElementById("buildingName").value.trim();
-  const buildingCostDivs = document.querySelectorAll("#buildingCost .building-cost-row");
-  const buildingCost = {};
-  buildingCostDivs.forEach((div) => {
-    const mat = div.querySelector(".building-cost-material").value.trim();
-    const amt = parseFloat(div.querySelector(".building-cost-amount").value);
-    if (mat && amt > 0) buildingCost[mat] = amt;
-  });
+  const machine = document.getElementById("buildingName").value.trim();
 
-  // Auto-create a separate recipe for the building if cost is specified and no recipe exists yet
-  if (building && Object.keys(buildingCost).length > 0 && !getAllRecipes()[building]) {
-    recipes[building] = {
-      variants: [{ name: "Default", produces: 1, ingredients: buildingCost, byproducts: {} }],
-    };
-  }
-
-  // Build the new variant object (buildingCost lives in the building's own recipe, not here)
-  const newVariant = { name: variantName, produces, ingredients, byproducts: {} };
-  if (Object.keys(byproducts).length > 0) newVariant.byproducts = byproducts;
-  if (building) newVariant.building = building;
+  // Build the new variant (schema v2). A machine's build cost lives in the
+  // machine's own recipe, not here.
+  const newVariant = { name: variantName, inputs, outputs };
+  if (time > 0) newVariant.time = time;
+  if (machine) newVariant.machine = machine;
 
   // Append variant if recipe already exists, otherwise create fresh
   if (recipes[name]) {
@@ -504,13 +452,12 @@ function addRecipe() {
   document.getElementById("itemName").value = "";
   document.getElementById("variantName").value = "";
   document.getElementById("produces").value = 1;
+  document.getElementById("recipeTime").value = "";
   document.getElementById("ingredients").innerHTML = "";
   addIngredientField();
   document.getElementById("byproducts").innerHTML =
-    '<h4>Byproducts <span class="optional-label">(optional)</span></h4>';
+    '<h4>Co-products <span class="optional-label">(optional)</span></h4>';
   document.getElementById("buildingName").value = "";
-  document.getElementById("buildingCost").innerHTML =
-    '<h4>Building Cost <span class="optional-label">(optional)</span></h4>';
 }
 
 // ======= Update Craft Dropdown =======
@@ -564,9 +511,8 @@ function updateVariantSelector() {
   normalized.variants.forEach((variant, idx) => {
     const option = document.createElement("option");
     option.value = idx;
-    option.textContent = `${variant.name} (${variant.produces}x from ${Object.entries(
-      variant.ingredients,
-    )
+    const primary = (variant.outputs || {})[selectedItem] ?? 1;
+    option.textContent = `${variant.name} (${primary}x from ${Object.entries(variant.inputs || {})
       .map(([ing, amt]) => `${amt} ${ing}`)
       .join(", ")})`;
     if (idx === preferredIndex) {
@@ -611,11 +557,11 @@ function updateBuildingIndicator() {
     return;
   }
   const variant = getSelectedVariant(itemSelect.value, recipe);
-  if (!variant?.building) {
+  if (!variant?.machine) {
     el.style.display = "none";
     return;
   }
-  el.innerHTML = `<label class="building-req-label">Built in:</label><span class="building-req-name">${escapeHtml(variant.building)}</span>`;
+  el.innerHTML = `<label class="building-req-label">Built in:</label><span class="building-req-name">${escapeHtml(variant.machine)}</span>`;
   el.style.display = "block";
 }
 
@@ -657,15 +603,15 @@ function updateMaterialSelectors() {
   }
 
   const variant = getSelectedVariant(selectedItem, recipe);
-  const categoryIngredients = Object.keys(variant.ingredients).filter((ing) => getAllCategories()[ing]);
+  const categoryIngredients = Object.keys(variant.inputs).filter((ing) => getAllCategories()[ing]);
 
-  const buildingName = variant.building;
+  const buildingName = variant.machine;
   const buildingRecipe = buildingName ? allRecipes[buildingName] : null;
   const normalizedBuilding = buildingRecipe ? normalizeRecipe(buildingRecipe) : null;
   const buildingHasVariants = normalizedBuilding && normalizedBuilding.variants.length > 1;
   const buildingVariant = buildingRecipe ? getSelectedVariant(buildingName, buildingRecipe) : null;
   const buildingCatIngredients = buildingVariant
-    ? Object.keys(buildingVariant.ingredients).filter((ing) => getAllCategories()[ing])
+    ? Object.keys(buildingVariant.inputs).filter((ing) => getAllCategories()[ing])
     : [];
 
   if (
@@ -755,7 +701,7 @@ function updateIngredientDatalist() {
   for (let recipeName in allRecipes) {
     const normalized = normalizeRecipe(allRecipes[recipeName]);
     for (let variant of normalized.variants) {
-      for (let ing in variant.ingredients) {
+      for (let ing in variant.inputs) {
         if (!recipeNames.has(ing) && !categoryNames.has(ing)) {
           otherNames.add(ing);
         }
@@ -777,6 +723,31 @@ function updateIngredientDatalist() {
 }
 
 // ======= Update Stored Recipes List =======
+// Inner HTML for one recipe variant in the stored-recipes list.
+function recipeVariantInfoHtml(variantLabel, name, variant) {
+  const inputs = Object.entries(variant.inputs || {})
+    .map(([ing, amt]) => {
+      const label = getAllCategories()[ing]
+        ? `<span class="category-ref">${escapeHtml(ing)}</span>`
+        : escapeHtml(ing);
+      return `${amt} x ${label}`;
+    })
+    .join(", ");
+  const outputs = variant.outputs || {};
+  const primary = outputs[name] ?? 1;
+  const coProducts = Object.entries(outputs)
+    .filter(([o]) => o !== name)
+    .map(([o, a]) => `${a} × ${escapeHtml(o)}`)
+    .join(", ");
+  const timeStr = variant.time ? ` · ${variant.time}s` : "";
+  return `
+    <strong>${variantLabel}</strong> (produces ${primary}${timeStr})
+    <br><small>Requires: ${inputs}</small>
+    ${coProducts ? `<br><small>Also produces: ${coProducts}</small>` : ""}
+    ${variant.machine ? `<br><small>Machine: ${escapeHtml(variant.machine)}</small>` : ""}
+  `;
+}
+
 function updateStoredRecipesList() {
   const container = document.getElementById("storedRecipes");
   if (!container) return;
@@ -800,36 +771,14 @@ function updateStoredRecipesList() {
       const normalized = normalizeRecipe(recipe);
 
       // Show all variants
-      normalized.variants.forEach((variant, idx) => {
-        const ingredients = Object.entries(variant.ingredients)
-          .map(([ing, amt]) => {
-            const label = getAllCategories()[ing] ? `<span class="category-ref">${escapeHtml(ing)}</span>` : escapeHtml(ing);
-            return `${amt} x ${label}`;
-          })
-          .join(", ");
-        const byproductEntries = Object.entries(variant.byproducts || {});
-        const byproductsStr = byproductEntries.map(([item, amt]) => `${amt} × ${escapeHtml(item)}`).join(", ");
-
-        const variantLabel = normalized.variants.length > 1 ? `${escapeHtml(name)} [${escapeHtml(variant.name)}]` : escapeHtml(name);
-
-        const buildingStr = variant.building
-          ? `${escapeHtml(variant.building)}${
-              Object.keys(variant.buildingCost || {}).length > 0
-                ? ` (costs: ${Object.entries(variant.buildingCost)
-                    .map(([m, a]) => `${a} × ${escapeHtml(m)}`)
-                    .join(", ")})`
-                : ""
-            }`
-          : "";
-
+      normalized.variants.forEach((variant) => {
+        const variantLabel =
+          normalized.variants.length > 1
+            ? `${escapeHtml(name)} [${escapeHtml(variant.name)}]`
+            : escapeHtml(name);
         html += `
           <div class="recipe-item game-recipe">
-            <div class="recipe-info">
-              <strong>${variantLabel}</strong> (produces ${variant.produces})
-              <br><small>Requires: ${ingredients}</small>
-              ${byproductsStr ? `<br><small>Also produces: ${byproductsStr}</small>` : ""}
-              ${buildingStr ? `<br><small>Building: ${buildingStr}</small>` : ""}
-            </div>
+            <div class="recipe-info">${recipeVariantInfoHtml(variantLabel, name, variant)}</div>
             <span class="recipe-source">Game</span>
           </div>
         `;
@@ -849,37 +798,11 @@ function updateStoredRecipesList() {
 
       // Show all variants
       normalized.variants.forEach((variant, idx) => {
-        const ingredients = Object.entries(variant.ingredients)
-          .map(([ing, amt]) => {
-            const label = getAllCategories()[ing] ? `<span class="category-ref">${escapeHtml(ing)}</span>` : escapeHtml(ing);
-            return `${amt} x ${label}`;
-          })
-          .join(", ");
-        const byproductEntries = Object.entries(variant.byproducts || {});
-        const byproductsStr = byproductEntries.map(([item, amt]) => `${amt} × ${escapeHtml(item)}`).join(", ");
-
         const variantLabel =
           normalized.variants.length > 1 ? `${displayName} [${escapeHtml(variant.name)}]` : displayName;
-
-        const buildingStr = variant.building
-          ? `${escapeHtml(variant.building)}${
-              Object.keys(variant.buildingCost || {}).length > 0
-                ? ` (costs: ${Object.entries(variant.buildingCost)
-                    .map(([m, a]) => `${a} × ${escapeHtml(m)}`)
-                    .join(", ")})`
-                : ""
-            }`
-          : "";
-
         html += `
           <div class="recipe-item custom-recipe ${hasConflict ? "conflict-recipe" : ""}">
-            <div class="recipe-info">
-              <strong>${variantLabel}</strong> (produces ${variant.produces}) <br /><small
-                >Requires: ${ingredients}</small
-              >
-              ${byproductsStr ? `<br><small>Also produces: ${byproductsStr}</small>` : ""}
-              ${buildingStr ? `<br><small>Building: ${buildingStr}</small>` : ""}
-            </div>
+            <div class="recipe-info">${recipeVariantInfoHtml(variantLabel, name, variant)}</div>
             <div class="item-actions">
               <button type="button" class="edit-btn" data-action="edit-recipe" data-name="${escapeHtml(name)}" data-variant-idx="${idx}">Edit</button>
               <button type="button" class="delete-btn" data-action="delete-recipe" data-name="${escapeHtml(name)}">Delete</button>
@@ -917,33 +840,35 @@ function editRecipe(name, variantIdx) {
 
   switchTab("setupTab");
 
+  const outputs = variant.outputs || {};
+
   document.getElementById("itemName").value = name;
   document.getElementById("variantName").value = variant.name;
-  document.getElementById("produces").value = variant.produces;
+  document.getElementById("produces").value = outputs[name] ?? 1;
+  document.getElementById("recipeTime").value = variant.time || "";
 
-  // Fill ingredients
+  // Fill inputs
   document.getElementById("ingredients").innerHTML = "";
-  for (const [ingName, ingAmt] of Object.entries(variant.ingredients)) {
+  for (const [ingName, ingAmt] of Object.entries(variant.inputs || {})) {
     addIngredientField();
     const idx = ingredientCount - 1;
     document.getElementById(`ingredientName_${idx}`).value = ingName;
     document.getElementById(`ingredientAmount_${idx}`).value = ingAmt;
   }
 
-  // Fill byproducts
+  // Fill co-products (outputs other than the primary)
   document.getElementById("byproducts").innerHTML =
-    '<h4>Byproducts <span class="optional-label">(optional)</span></h4>';
-  for (const [bpName, bpAmt] of Object.entries(variant.byproducts || {})) {
+    '<h4>Co-products <span class="optional-label">(optional)</span></h4>';
+  for (const [outName, outAmt] of Object.entries(outputs)) {
+    if (outName === name) continue;
     addByproductField();
     const idx = byproductCount - 1;
-    document.getElementById(`byproductName_${idx}`).value = bpName;
-    document.getElementById(`byproductAmount_${idx}`).value = bpAmt;
+    document.getElementById(`byproductName_${idx}`).value = outName;
+    document.getElementById(`byproductAmount_${idx}`).value = outAmt;
   }
 
-  // Fill building
-  document.getElementById("buildingName").value = variant.building || "";
-  document.getElementById("buildingCost").innerHTML =
-    '<h4>Building Cost <span class="optional-label">(optional)</span></h4>';
+  // Fill machine
+  document.getElementById("buildingName").value = variant.machine || "";
 
   document.getElementById("addRecipeCard").scrollIntoView({ behavior: "smooth" });
 }
@@ -980,9 +905,10 @@ async function loadGameRecipes() {
   const selectedGame = gameSelect.value;
 
   if (!selectedGame) {
-    // Clear game recipes and categories; use only custom data
+    // Clear game recipes, categories and items; use only custom data
     Object.keys(gameRecipes).forEach((key) => delete gameRecipes[key]);
     Object.keys(gameCategories).forEach((key) => delete gameCategories[key]);
+    Object.keys(gameItems).forEach((key) => delete gameItems[key]);
     localStorage.removeItem("currentGame");
     currentGame = null;
     statusDiv.innerHTML = "<small>Custom recipes only</small>";
@@ -1000,34 +926,34 @@ async function loadGameRecipes() {
 
     const gameData = await response.json();
 
-    // Clear existing game recipes/categories and load new ones
+    // Clear existing pack data and load fresh
     Object.keys(gameRecipes).forEach((key) => delete gameRecipes[key]);
     Object.keys(gameCategories).forEach((key) => delete gameCategories[key]);
+    Object.keys(gameItems).forEach((key) => delete gameItems[key]);
 
-    // Load pack-provided material categories (used to resolve category ingredients)
+    // Pack-provided material categories (used to resolve category inputs)
     if (gameData.categories && typeof gameData.categories === "object") {
       for (const [name, members] of Object.entries(gameData.categories)) {
         if (Array.isArray(members)) gameCategories[name] = members;
       }
     }
 
-    // Load game recipes (preserve variant structure or convert single recipes)
-    for (let [name, recipe] of Object.entries(gameData.recipes)) {
-      if (recipe.variants) {
-        // Recipe has variants - preserve the structure
-        gameRecipes[name] = {
-          variants: recipe.variants,
-          isGameRecipe: true,
-        };
-      } else {
-        // Single recipe - store as-is
-        gameRecipes[name] = {
-          produces: recipe.produces,
-          ingredients: recipe.ingredients,
-          metadata: recipe.metadata || {},
-          isGameRecipe: true,
-        };
-      }
+    // Pack-provided item metadata (units, groups, display names)
+    if (gameData.items && typeof gameData.items === "object") {
+      Object.assign(gameItems, gameData.items);
+    }
+
+    // Recipes are stored in schema v2 as authored (flat or variants).
+    for (const [name, recipe] of Object.entries(gameData.recipes)) {
+      gameRecipes[name] = { ...recipe, isGameRecipe: true };
+    }
+
+    // Optional per-pack default for the byproducts-as-supply toggle.
+    if (gameData.settings && typeof gameData.settings.byproductsAsSupply === "boolean") {
+      byproductsAsSupply = gameData.settings.byproductsAsSupply;
+      localStorage.setItem("byproductsAsSupply", String(byproductsAsSupply));
+      const bpToggle = document.getElementById("byproductsAsSupply");
+      if (bpToggle) bpToggle.checked = byproductsAsSupply;
     }
 
     currentGame = selectedGame;
@@ -1081,6 +1007,17 @@ function getAllRecipes() {
 // with user definitions overriding the pack on name conflicts.
 function getAllCategories() {
   return { ...gameCategories, ...categories };
+}
+
+// Display unit for an item (from pack item metadata), or "" if none.
+function getUnit(item) {
+  return gameItems[item]?.unit || "";
+}
+
+// A small unit suffix span for a tile quantity (units are display-only).
+function unitSpan(item) {
+  const unit = getUnit(item);
+  return unit ? `<span class="material-unit"> ${escapeHtml(unit)}</span>` : "";
 }
 
 // ======= Queue Management =======
@@ -1179,15 +1116,15 @@ function getQueueItemSelectors(item) {
   if (!recipe) return "";
 
   const variant = getSelectedVariant(item, recipe);
-  const categoryIngredients = Object.keys(variant.ingredients).filter((ing) => getAllCategories()[ing]);
+  const categoryIngredients = Object.keys(variant.inputs).filter((ing) => getAllCategories()[ing]);
 
-  const buildingName = variant.building;
+  const buildingName = variant.machine;
   const buildingRecipe = buildingName ? allRecipes[buildingName] : null;
   const normalizedBuilding = buildingRecipe ? normalizeRecipe(buildingRecipe) : null;
   const buildingHasVariants = normalizedBuilding && normalizedBuilding.variants.length > 1;
   const buildingVariant = buildingRecipe ? getSelectedVariant(buildingName, buildingRecipe) : null;
   const buildingCatIngredients = buildingVariant
-    ? Object.keys(buildingVariant.ingredients).filter((ing) => getAllCategories()[ing])
+    ? Object.keys(buildingVariant.inputs).filter((ing) => getAllCategories()[ing])
     : [];
 
   if (categoryIngredients.length === 0 && !buildingHasVariants && buildingCatIngredients.length === 0) {
@@ -1282,7 +1219,7 @@ function calculate() {
     html += `<div class="material-grid">`;
     for (const [name, qty] of Object.entries(leafTotals)) {
       html += `<div class="material-tile">
-        <div class="material-qty">${qty}</div>
+        <div class="material-qty">${qty}${unitSpan(name)}</div>
         <div class="material-name">${escapeHtml(name)}</div>
       </div>`;
     }
@@ -1297,7 +1234,7 @@ function calculate() {
       <div class="material-grid">`;
     for (const [name, qty] of Object.entries(byproductTotals)) {
       html += `<div class="material-tile byproduct-tile">
-        <div class="material-qty">+${qty}</div>
+        <div class="material-qty">+${qty}${unitSpan(name)}</div>
         <div class="material-name">${escapeHtml(name)}</div>
       </div>`;
     }
@@ -1312,7 +1249,7 @@ function calculate() {
     for (const [name, qty] of Object.entries(surplus)) {
       const shown = Number.isInteger(qty) ? qty : Math.round(qty * 100) / 100;
       html += `<div class="material-tile surplus-tile">
-        <div class="material-qty">${shown}</div>
+        <div class="material-qty">${shown}${unitSpan(name)}</div>
         <div class="material-name">${escapeHtml(name)}</div>
       </div>`;
     }
@@ -1351,8 +1288,8 @@ function calculate() {
         bpEntries.length > 0
           ? bpEntries.map(([k, v]) => `${v} &times; ${escapeHtml(k)}`).join(", ")
           : "&#8212;";
-      const buildingStr = info.building
-        ? `<span class="building-info">${escapeHtml(info.building)}</span>`
+      const buildingStr = info.machine
+        ? `<span class="building-info">${escapeHtml(info.machine)}</span>`
         : "&#8212;";
       html += `<tr>
         <td>${escapeHtml(mat)}</td>
@@ -1438,8 +1375,8 @@ function renderTree(node) {
     html += ` <span class="variant-info">[${escapeHtml(node.variantName)}]</span>`;
   }
 
-  if (node.building) {
-    html += ` <span class="building-info">[${escapeHtml(node.building)}]</span>`;
+  if (node.machine) {
+    html += ` <span class="building-info">[${escapeHtml(node.machine)}]</span>`;
   }
 
   if (node.children.length > 0) {
@@ -1519,9 +1456,10 @@ function exportRecipes() {
   const name = prompt("Game name for export:", "My Custom Recipes");
   if (name === null) return;
   const pack = {
-    gameInfo: { name, version: "1.0.0", description: "Exported from Crafting Calculator" },
-    recipes: { ...recipes },
+    schemaVersion: 2,
+    gameInfo: { name, gameVersion: "1.0.0", description: "Exported from Crafting Calculator" },
     categories: { ...categories },
+    recipes: { ...recipes },
   };
   const blob = new Blob([JSON.stringify(pack, null, 2)], { type: "application/json" });
   const a = document.createElement("a");

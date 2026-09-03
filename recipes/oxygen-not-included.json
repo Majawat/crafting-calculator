@@ -1,125 +1,65 @@
 {
+  "schemaVersion": 2,
   "gameInfo": {
     "name": "Oxygen Not Included",
-    "version": "1.0.0",
-    "description": "Exported from Crafting Calculator"
+    "gameVersion": "1.0.0",
+    "description": "Metal refining and basic food recipes for Oxygen Not Included (masses in kg)."
+  },
+  "categories": {
+    "Refined Metal": ["Copper", "Gold"],
+    "Metal Ore": ["Copper Ore", "Gold Amalgam"]
+  },
+  "items": {
+    "Copper Ore": { "raw": true, "unit": "kg", "group": "Ores" },
+    "Gold Amalgam": { "raw": true, "unit": "kg", "group": "Ores" },
+    "Dirt": { "raw": true, "unit": "kg", "group": "Raw Materials" },
+    "Water": { "raw": true, "unit": "kg", "group": "Liquids" },
+    "Meal Lice": { "raw": true, "unit": "kg", "group": "Food" },
+    "Copper": { "unit": "kg", "group": "Refined Metals" },
+    "Gold": { "unit": "kg", "group": "Refined Metals" },
+    "Sand": { "unit": "kg", "group": "Raw Materials" }
   },
   "recipes": {
     "Auto-Sweeper": {
-      "variants": [
-        {
-          "name": "Default",
-          "produces": 1,
-          "ingredients": {
-            "Refined Metal": 200
-          },
-          "byproducts": {}
-        }
-      ]
+      "inputs": { "Refined Metal": 200 },
+      "outputs": { "Auto-Sweeper": 1 }
     },
     "Rock Crusher": {
-      "variants": [
-        {
-          "name": "Default",
-          "produces": 1,
-          "ingredients": {
-            "Metal Ore": 800
-          },
-          "byproducts": {}
-        }
-      ]
+      "inputs": { "Metal Ore": 800 },
+      "outputs": { "Rock Crusher": 1 }
+    },
+    "Microbe Musher": {
+      "inputs": { "Metal Ore": 400 },
+      "outputs": { "Microbe Musher": 1 }
     },
     "Copper": {
       "variants": [
         {
           "name": "Rock Crusher",
-          "produces": 50,
-          "ingredients": {
-            "Copper Ore": 100
-          },
-          "byproducts": {
-            "Sand": 50
-          },
-          "building": "Rock Crusher"
-        }
-      ]
-    },
-    "Wire": {
-      "variants": [
-        {
-          "name": "Default",
-          "produces": 1,
-          "ingredients": {
-            "Metal Ore": 25
-          },
-          "byproducts": {}
+          "inputs": { "Copper Ore": 100 },
+          "outputs": { "Copper": 50, "Sand": 50 },
+          "machine": "Rock Crusher"
         }
       ]
     },
     "Gold": {
-      "variants": [
-        {
-          "name": "Default",
-          "produces": 50,
-          "ingredients": {
-            "Gold Amalgam": 100
-          },
-          "byproducts": {
-            "Sand": 50
-          },
-          "building": "Rock Crusher"
-        }
-      ]
+      "inputs": { "Gold Amalgam": 100 },
+      "outputs": { "Gold": 50, "Sand": 50 },
+      "machine": "Rock Crusher"
     },
-    "Microbe Musher": {
-      "variants": [
-        {
-          "name": "Default",
-          "produces": 1,
-          "ingredients": {
-            "Metal Ore": 400
-          },
-          "byproducts": {}
-        }
-      ]
+    "Wire": {
+      "inputs": { "Metal Ore": 25 },
+      "outputs": { "Wire": 1 }
     },
     "Mush Bar": {
-      "variants": [
-        {
-          "name": "Default",
-          "produces": 800,
-          "ingredients": {
-            "Dirt": 75,
-            "Water": 75
-          },
-          "byproducts": {},
-          "building": "Microbe Musher"
-        }
-      ]
+      "inputs": { "Dirt": 75, "Water": 75 },
+      "outputs": { "Mush Bar": 800 },
+      "machine": "Microbe Musher"
     },
     "Liceloaf": {
-      "variants": [
-        {
-          "name": "Default",
-          "produces": 1700,
-          "ingredients": {
-            "Meal Lice": 1200,
-            "Water": 50
-          },
-          "byproducts": {},
-          "building": "Microbe Musher"
-        }
-      ]
+      "inputs": { "Meal Lice": 1200, "Water": 50 },
+      "outputs": { "Liceloaf": 1700 },
+      "machine": "Microbe Musher"
     }
-  },
-  "categories": {
-    "Refined Metal": [
-      "Copper",
-      "Gold"
-    ],
-    "Metal Ore": [
-      "Copper",
-      "Gold Amalgam"
-    ]
   }
 }
