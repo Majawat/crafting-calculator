@@ -21,6 +21,7 @@ const categories = {}; // { categoryName: string[] }
 const materialPreferences = {}; // { categoryName: specificMaterial } — global fallback
 const materialChoice = {}; // { "consumingItem|categoryName": material } — per-recipe choice
 let queue = []; // { item: string, qty: number }[]
+const onHand = {}; // { item: amount } — inventory already on hand, offsets demand
 
 // ======= Load recipes from LocalStorage on page load =======
 window.addEventListener("DOMContentLoaded", async () => {
@@ -57,14 +58,21 @@ window.addEventListener("DOMContentLoaded", async () => {
   if (savedMaterialChoice) {
     Object.assign(materialChoice, JSON.parse(savedMaterialChoice));
   }
+  const savedOnHand = localStorage.getItem("onHand");
+  if (savedOnHand) {
+    Object.assign(onHand, JSON.parse(savedOnHand));
+  }
 
   updateCraftDropdown();
   updateIngredientDatalist();
   updateStoredRecipesList();
   updateStoredCategoriesList();
   renderQueue();
+  renderOnHandFields();
   addIngredientField(); // start with one ingredient input
   addCategoryMemberField(); // start with one category member input
+
+  document.getElementById("onHandItems").addEventListener("input", syncOnHand);
 
   document.getElementById("storedCategories").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-action]");
@@ -339,7 +347,7 @@ function engineCtx() {
     materialChoice,
     materialPreferences,
     variantPreferences,
-    onHand: {}, // inventory input lands in a later phase
+    onHand,
     mode: "batch",
     byproductsAsSupply: false,
   };
@@ -1058,6 +1066,55 @@ function addBuildingToQueue(name) {
   document.getElementById("queueCard").scrollIntoView({ behavior: "smooth" });
 }
 
+// ======= On Hand (inventory) =======
+function addOnHandField(item = "", amount = "") {
+  const container = document.getElementById("onHandItems");
+  if (!container) return;
+  const div = document.createElement("div");
+  div.classList.add("onhand-row");
+  div.innerHTML = `
+    <input type="number" min="0" step="any" placeholder="Amount" value="${escapeHtml(String(amount))}" class="onhand-amount" />
+    <input list="ingredientList" placeholder="Item name" value="${escapeHtml(String(item))}" class="onhand-name" />
+    <button type="button" class="delete-btn" onclick="removeOnHandField(this)">x</button>
+  `;
+  container.appendChild(div);
+}
+
+function removeOnHandField(button) {
+  button.parentElement.remove();
+  syncOnHand();
+}
+
+// Read the on-hand rows into the `onHand` map and persist. Called on every edit.
+function syncOnHand() {
+  for (const k of Object.keys(onHand)) delete onHand[k];
+  document.querySelectorAll("#onHandItems .onhand-row").forEach((row) => {
+    const name = row.querySelector(".onhand-name").value.trim();
+    const amount = parseFloat(row.querySelector(".onhand-amount").value);
+    if (name && amount > 0) onHand[name] = (onHand[name] || 0) + amount;
+  });
+  localStorage.setItem("onHand", JSON.stringify(onHand));
+}
+
+// Populate the rows from the stored `onHand` map (one empty row if none).
+function renderOnHandFields() {
+  const container = document.getElementById("onHandItems");
+  if (!container) return;
+  container.innerHTML = "";
+  const entries = Object.entries(onHand);
+  if (entries.length === 0) {
+    addOnHandField();
+    return;
+  }
+  for (const [item, amount] of entries) addOnHandField(item, amount);
+}
+
+function clearOnHand() {
+  for (const k of Object.keys(onHand)) delete onHand[k];
+  localStorage.removeItem("onHand");
+  renderOnHandFields();
+}
+
 function getQueueItemSelectors(item) {
   const allRecipes = getAllRecipes();
   const recipe = allRecipes[item];
@@ -1151,7 +1208,7 @@ function calculate() {
   if (queue.length === 0) return;
 
   const trees = queue.map(({ item, qty }) => expand(item, qty));
-  const { leafTotals, byproductTotals, buildings, totalTime, intermediateBatches } =
+  const { leafTotals, byproductTotals, buildings, totalTime, intermediateBatches, surplus } =
     computeGlobalNeeds(queue);
 
   const allRecipes = getAllRecipes();
@@ -1160,15 +1217,20 @@ function calculate() {
 
   // Hero materials grid
   html += `<div class="results-section">
-    <div class="section-label">materials needed</div>
-    <div class="material-grid">`;
-  for (const [name, qty] of Object.entries(leafTotals)) {
-    html += `<div class="material-tile">
-      <div class="material-qty">${qty}</div>
-      <div class="material-name">${escapeHtml(name)}</div>
-    </div>`;
+    <div class="section-label">materials needed</div>`;
+  if (Object.keys(leafTotals).length === 0) {
+    html += `<p class="empty-state">Nothing to gather &mdash; covered by what you have on hand.</p>`;
+  } else {
+    html += `<div class="material-grid">`;
+    for (const [name, qty] of Object.entries(leafTotals)) {
+      html += `<div class="material-tile">
+        <div class="material-qty">${qty}</div>
+        <div class="material-name">${escapeHtml(name)}</div>
+      </div>`;
+    }
+    html += `</div>`;
   }
-  html += `</div></div>`;
+  html += `</div>`;
 
   // Byproducts (if any)
   if (Object.keys(byproductTotals).length > 0) {
@@ -1178,6 +1240,21 @@ function calculate() {
     for (const [name, qty] of Object.entries(byproductTotals)) {
       html += `<div class="material-tile byproduct-tile">
         <div class="material-qty">+${qty}</div>
+        <div class="material-name">${escapeHtml(name)}</div>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  // Surplus (leftover from batching + unused on-hand)
+  if (Object.keys(surplus).length > 0) {
+    html += `<div class="results-section">
+      <div class="section-label">surplus (left over)</div>
+      <div class="material-grid">`;
+    for (const [name, qty] of Object.entries(surplus)) {
+      const shown = Number.isInteger(qty) ? qty : Math.round(qty * 100) / 100;
+      html += `<div class="material-tile surplus-tile">
+        <div class="material-qty">${shown}</div>
         <div class="material-name">${escapeHtml(name)}</div>
       </div>`;
     }
@@ -1407,6 +1484,7 @@ function clearAllData() {
     "categories",
     "materialPreferences",
     "materialChoice",
+    "onHand",
   ].forEach((k) => localStorage.removeItem(k));
   location.reload();
 }

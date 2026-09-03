@@ -12,7 +12,7 @@ The application follows a simple file structure:
 
 - **index.html**: Single-page application with forms for adding recipes and calculating crafts
 - **engine.js**: Pure calculation core. Solves a **topological net-flow pass** over the recipe graph (resolve categories/variants → concrete graph → topo-order the items, consumers first → propagate demand, round once per node). No DOM or browser APIs — all state passed via a `ctx` object. Exposed as `window.CraftEngine` (browser) and `module.exports` (Node). Supports per-`(recipe, category)` material choice, `onHand` inventory, `yieldMultiplier`, and `byproductsAsSupply` (co-products offset demand via a fixpoint). See **docs/ENGINE.md** for the full model.
-- **app.js**: UI, recipe storage, and DOM manipulation. Delegates all math to `CraftEngine` via thin wrappers (`expand`, `computeGlobalNeeds`, `normalizeRecipe`, etc.) that supply the app's live state through `engineCtx()`. Note: `onHand`/`byproductsAsSupply` are wired in the engine but not yet exposed in the UI.
+- **app.js**: UI, recipe storage, and DOM manipulation. Delegates all math to `CraftEngine` via thin wrappers (`expand`, `computeGlobalNeeds`, `normalizeRecipe`, etc.) that supply the app's live state through `engineCtx()`. Note: `onHand` inventory has a UI (the On Hand card, offsets demand, shows surplus); `byproductsAsSupply` is wired in the engine but not yet exposed in the UI.
 - **styles.css**: Styling with card-based layout and responsive design
 - **tests/engine.test.js**: Node built-in test-runner suite for `engine.js` (`node --test`). No dependencies.
 - **recipes/index.json**: Manifest listing the game recipe packs; the Setup-tab dropdown is populated from it at load time.

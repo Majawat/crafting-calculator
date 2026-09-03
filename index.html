@@ -76,6 +76,17 @@
               &#9658;Calculate All
             </button>
           </div>
+
+          <!-- On Hand Card -->
+          <div class="card" id="onHandCard">
+            <div class="queue-header">
+              <h2>On Hand <span class="optional-label">(optional)</span></h2>
+              <button type="reset" class="btn-ghost" onclick="clearOnHand()">clear all</button>
+            </div>
+            <p class="card-hint">Materials you already have are subtracted from what you need. Recalculate to apply.</p>
+            <div id="onHandItems"></div>
+            <button type="button" onclick="addOnHandField()">+Add item</button>
+          </div>
         </div>
 
         <!-- Results Card -->

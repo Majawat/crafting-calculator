@@ -256,19 +256,23 @@
       if (!info.isQueueItem) intermediateBatches[item] = info;
     }
 
-    // Surplus: anything available beyond what the plan consumes or targets.
+    // Surplus: crafted output + inventory left over after the plan consumes and
+    // meets its targets (batch leftover + unused on-hand). Byproducts only count
+    // as available supply when byproductsAsSupply is on; otherwise they are
+    // reported in their own byproducts section and must not double-report here.
     const surplus = {};
+    const countBp = !!ctx.byproductsAsSupply;
     const items = new Set([
       ...Object.keys(res.produced),
       ...Object.keys(res.consumed),
-      ...Object.keys(res.byproductSupply),
+      ...(countBp ? Object.keys(res.byproductSupply) : []),
       ...Object.keys(ctx.onHand || {}),
       ...Object.keys(res.targetQty),
     ]);
     for (const item of items) {
       const avail =
         (res.produced[item] || 0) +
-        (res.byproductSupply[item] || 0) +
+        (countBp ? res.byproductSupply[item] || 0 : 0) +
         ((ctx.onHand || {})[item] || 0);
       const used = (res.consumed[item] || 0) + (res.targetQty[item] || 0);
       const s = avail - used;

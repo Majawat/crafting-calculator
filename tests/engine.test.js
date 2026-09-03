@@ -202,6 +202,27 @@ test("byproductsAsSupply offsets demand for a co-product and reports surplus", (
   assert.equal(without.leafTotals.Gas, 2); // must buy Gas when supply is ignored
 });
 
+test("byproducts are not double-reported as surplus when supply is off", () => {
+  const recipes = {
+    Steel: {
+      variants: [
+        {
+          name: "Default",
+          produces: 2,
+          ingredients: { Iron: 3 },
+          byproducts: { Slag: 1 },
+        },
+      ],
+    },
+  };
+  const { byproductTotals, surplus } = engine.solve(
+    [{ item: "Steel", qty: 4 }], // 2 batches → 2 Slag
+    ctx(recipes, { byproductsAsSupply: false }),
+  );
+  assert.equal(byproductTotals.Slag, 2); // shown in the byproducts section
+  assert.ok(!("Slag" in surplus)); // but NOT counted again as surplus
+});
+
 test("resolveMaterial keys material choice per consuming recipe", () => {
   const c = ctx(
     { Frame: { produces: 1, ingredients: { Metal: 1 } }, Plate: { produces: 1, ingredients: { Metal: 1 } } },
