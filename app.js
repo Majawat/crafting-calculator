@@ -18,7 +18,8 @@ let buildingCostCount = 0;
 let categoryMemberCount = 0;
 const variantPreferences = {}; // Stores selected variant index per recipe: { "RecipeName": 0 }
 const categories = {}; // { categoryName: string[] }
-const materialPreferences = {}; // { categoryName: specificMaterial }
+const materialPreferences = {}; // { categoryName: specificMaterial } — global fallback
+const materialChoice = {}; // { "consumingItem|categoryName": material } — per-recipe choice
 let queue = []; // { item: string, qty: number }[]
 
 // ======= Load recipes from LocalStorage on page load =======
@@ -52,6 +53,10 @@ window.addEventListener("DOMContentLoaded", async () => {
   if (savedMaterialPrefs) {
     Object.assign(materialPreferences, JSON.parse(savedMaterialPrefs));
   }
+  const savedMaterialChoice = localStorage.getItem("materialChoice");
+  if (savedMaterialChoice) {
+    Object.assign(materialChoice, JSON.parse(savedMaterialChoice));
+  }
 
   updateCraftDropdown();
   updateIngredientDatalist();
@@ -79,7 +84,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("calculateTab").addEventListener("change", (e) => {
     const sel = e.target;
-    if (sel.dataset.action === "save-material") saveMaterialSelection(sel.dataset.categoryName, sel.value);
+    if (sel.dataset.action === "save-material") saveMaterialSelection(sel.dataset.categoryName, sel.value, sel.dataset.recipeItem);
     else if (sel.dataset.action === "save-building-variant") saveBuildingVariantSelection(sel.dataset.buildingName, sel.value);
   });
 
@@ -331,8 +336,12 @@ function engineCtx() {
   return {
     allRecipes: getAllRecipes(),
     categories,
+    materialChoice,
     materialPreferences,
     variantPreferences,
+    onHand: {}, // inventory input lands in a later phase
+    mode: "batch",
+    byproductsAsSupply: false,
   };
 }
 
@@ -350,6 +359,22 @@ const computeGlobalNeeds = (queue) => CraftEngine.computeGlobalNeeds(queue, engi
 function setMaterialPreference(categoryName, material) {
   materialPreferences[categoryName] = material;
   localStorage.setItem("materialPreferences", JSON.stringify(materialPreferences));
+}
+
+// Per-recipe material choice: which material a given consuming recipe uses for
+// a category ingredient. Keyed by "consumingItem|categoryName"; falls back to
+// the global preference for display.
+function materialChoiceKey(consumingItem, categoryName) {
+  return `${consumingItem}|${categoryName}`;
+}
+
+function getSelectedMaterialFor(consumingItem, categoryName) {
+  return materialChoice[materialChoiceKey(consumingItem, categoryName)] || getSelectedMaterial(categoryName);
+}
+
+function setMaterialChoice(consumingItem, categoryName, material) {
+  materialChoice[materialChoiceKey(consumingItem, categoryName)] = material;
+  localStorage.setItem("materialChoice", JSON.stringify(materialChoice));
 }
 
 // ======= Recipe Variants Helpers =======
@@ -558,8 +583,8 @@ function updateBuildingIndicator() {
 }
 
 // ======= Build Material Option Elements =======
-function buildMaterialOptions(catName) {
-  const selected = getSelectedMaterial(catName);
+function buildMaterialOptions(catName, consumingItem) {
+  const selected = getSelectedMaterialFor(consumingItem, catName);
   return categories[catName]
     .map((m) => `<option value="${escapeHtml(m)}"${m === selected ? " selected" : ""}>${escapeHtml(m)}</option>`)
     .join("");
@@ -621,7 +646,7 @@ function updateMaterialSelectors() {
     html += `
       <div class="material-selector-row">
         <label><em>${escapeHtml(catName)}:</em></label>
-        <select data-action="save-material" data-category-name="${escapeHtml(catName)}">${buildMaterialOptions(catName)}</select>
+        <select data-action="save-material" data-category-name="${escapeHtml(catName)}" data-recipe-item="${escapeHtml(selectedItem)}">${buildMaterialOptions(catName, selectedItem)}</select>
       </div>
     `;
   });
@@ -654,7 +679,7 @@ function updateMaterialSelectors() {
       buildingHtml += `
         <div class="material-selector-row">
           <label><em>${escapeHtml(catName)}:</em></label>
-          <select data-action="save-material" data-category-name="${escapeHtml(catName)}">${buildMaterialOptions(catName)}</select>
+          <select data-action="save-material" data-category-name="${escapeHtml(catName)}" data-recipe-item="${escapeHtml(buildingName)}">${buildMaterialOptions(catName, buildingName)}</select>
         </div>
       `;
     });
@@ -669,8 +694,9 @@ function updateMaterialSelectors() {
   container.style.display = "block";
 }
 
-function saveMaterialSelection(categoryName, material) {
-  setMaterialPreference(categoryName, material);
+function saveMaterialSelection(categoryName, material, consumingItem) {
+  if (consumingItem) setMaterialChoice(consumingItem, categoryName, material);
+  else setMaterialPreference(categoryName, material);
 }
 
 function saveBuildingVariantSelection(buildingName, variantIndex) {
@@ -1058,7 +1084,7 @@ function getQueueItemSelectors(item) {
   categoryIngredients.forEach((catName) => {
     html += `<div class="material-selector-row">
       <label><em>${escapeHtml(catName)}:</em></label>
-      <select data-action="save-material" data-category-name="${escapeHtml(catName)}">${buildMaterialOptions(catName)}</select>
+      <select data-action="save-material" data-category-name="${escapeHtml(catName)}" data-recipe-item="${escapeHtml(item)}">${buildMaterialOptions(catName, item)}</select>
     </div>`;
   });
 
@@ -1080,7 +1106,7 @@ function getQueueItemSelectors(item) {
     buildingCatIngredients.forEach((catName) => {
       html += `<div class="material-selector-row">
         <label><em>${escapeHtml(catName)}:</em></label>
-        <select data-action="save-material" data-category-name="${escapeHtml(catName)}">${buildMaterialOptions(catName)}</select>
+        <select data-action="save-material" data-category-name="${escapeHtml(catName)}" data-recipe-item="${escapeHtml(buildingName)}">${buildMaterialOptions(catName, buildingName)}</select>
       </div>`;
     });
 
@@ -1380,6 +1406,7 @@ function clearAllData() {
     "queue",
     "categories",
     "materialPreferences",
+    "materialChoice",
   ].forEach((k) => localStorage.removeItem(k));
   location.reload();
 }

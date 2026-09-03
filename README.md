@@ -8,7 +8,7 @@ This project runs entirely client‑side (HTML, CSS, JavaScript) — no backend,
 
 * Add recipes on the fly (name, quantity produced, ingredients, byproducts, building costs)
 * **Recipe variants** — define multiple crafting methods for the same item; the calculator uses your preferred variant
-* **Material categories** — group interchangeable materials (e.g. "Refined Metal" → Copper, Aluminum…) and pick which one to use per calculation
+* **Material categories** — group interchangeable materials (e.g. "Refined Metal" → Copper, Aluminum…) and pick which one to use **per recipe** (build one thing from Copper and another from Aluminum, both drawing on the same category)
 * **Multi-item queue** — queue up several items at once; the calculator finds the globally optimal batch counts across all of them
 * Totals view for base materials (globally correct — no per-item batch overcounting)
 * **Combined Crafting** section showing global batch stats for intermediate materials (batches run, produced, leftover, byproducts)
@@ -85,7 +85,8 @@ Crafting 4 Bridge Anchors → requires **80 Metals, 160 Organics, 160 Minerals**
 
 The calculation core lives in `engine.js` as a dependency-free module (no DOM),
 so it can be unit tested outside the browser. `app.js` handles all UI/DOM work
-and delegates its math to the engine.
+and delegates its math to the engine. It solves a topological net-flow pass over
+the recipe graph — see [`docs/ENGINE.md`](docs/ENGINE.md) for the model.
 
 Run the test suite (requires Node 18+, no `npm install` needed — uses Node's
 built-in test runner):

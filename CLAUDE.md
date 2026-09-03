@@ -11,8 +11,8 @@ This is a pure client-side crafting calculator application built with vanilla HT
 The application follows a simple file structure:
 
 - **index.html**: Single-page application with forms for adding recipes and calculating crafts
-- **engine.js**: Pure calculation core (recipe expansion, global batch math, variant/category/circular-dependency helpers). No DOM or browser APIs — all state is passed in via a `ctx` object. Exposed as `window.CraftEngine` in the browser and `module.exports` in Node, so it is unit tested directly.
-- **app.js**: UI, recipe storage, and DOM manipulation. Delegates all math to `CraftEngine` via thin wrappers (`expand`, `computeGlobalNeeds`, `normalizeRecipe`, etc.) that supply the app's live state through `engineCtx()`.
+- **engine.js**: Pure calculation core. Solves a **topological net-flow pass** over the recipe graph (resolve categories/variants → concrete graph → topo-order the items, consumers first → propagate demand, round once per node). No DOM or browser APIs — all state passed via a `ctx` object. Exposed as `window.CraftEngine` (browser) and `module.exports` (Node). Supports per-`(recipe, category)` material choice, `onHand` inventory, `yieldMultiplier`, and `byproductsAsSupply` (co-products offset demand via a fixpoint). See **docs/ENGINE.md** for the full model.
+- **app.js**: UI, recipe storage, and DOM manipulation. Delegates all math to `CraftEngine` via thin wrappers (`expand`, `computeGlobalNeeds`, `normalizeRecipe`, etc.) that supply the app's live state through `engineCtx()`. Note: `onHand`/`byproductsAsSupply` are wired in the engine but not yet exposed in the UI.
 - **styles.css**: Styling with card-based layout and responsive design
 - **tests/engine.test.js**: Node built-in test-runner suite for `engine.js` (`node --test`). No dependencies.
 - **recipes/index.json**: Manifest listing the game recipe packs; the Setup-tab dropdown is populated from it at load time.
@@ -42,12 +42,12 @@ Recipes can have multiple variants (e.g., different crafting methods for the sam
 
 Engine (`engine.js`, pure):
 
-- `expand(item, qty, ctx)`: Recursively expands a recipe into a tree using selected variants
-- `computeGlobalNeeds(queue, ctx)`: Global batch calculation across all queued items (leaf totals, byproducts, buildings, intermediate batches, time)
-- `normalizeRecipe(recipe)`: Converts single recipes to variant format for consistent handling
-- `getSelectedVariant(name, recipe, variantPreferences)`: Returns the user's preferred variant or the first one
-- `getSelectedMaterial(cat, categories, materialPreferences)`: Resolves a category ingredient to the chosen material
-- `hasCircularDependency(item, recipeSet)`: Guards against cyclic recipes
+- `solve(queue, ctx)` (alias `computeGlobalNeeds`): the topological net-flow solver — returns `{ leafTotals, byproductTotals, buildings, totalTime, intermediateBatches, batches, surplus }`
+- `buildConcreteRecipes(queue, ctx)`: resolves reachable recipes into a concrete graph (categories → chosen materials, variant applied)
+- `topoOrder(concrete)`: consumers-before-consumed ordering; throws on a cycle
+- `resolveMaterial(consumingItem, ingredient, ctx)`: per-`(recipe, category)` material resolution (keyed → global pref → first member)
+- `expand(item, qty, ctx)`: per-item tree for the human-readable breakdown view only (not the source of totals)
+- `normalizeRecipe`, `getSelectedVariant`, `getSelectedMaterial`, `hasCircularDependency`: recipe-shape helpers
 
 App (`app.js`, DOM):
 
