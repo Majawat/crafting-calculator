@@ -126,7 +126,8 @@ rewrite.
 - **Phase 1** *(done)* — topo net-flow solver (batch mode), per-`(recipe,
   category)` material assignments, `onHand`/`yieldMultiplier` in the engine.
   `byproductsAsSupply` off by default (parity + the batch-rounding fix).
-- **Phase 2** *(this)* — inventory UI (`onHand` input) + surplus display.
-- **Phase 3** — byproducts-as-supply + fixpoint + per-pack flag.
+- **Phase 2** *(done)* — inventory UI (`onHand` input) + surplus display.
+- **Phase 3** *(this)* — byproducts-as-supply toggle in the UI (engine fixpoint
+  already present). Per-pack default flag still TODO.
 - **Phase 4** — graph/DAG view + efficiency exposure.
 - **Phase 5** *(optional)* — rate mode; then alternate-recipe optimization (LP).

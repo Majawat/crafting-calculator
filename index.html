@@ -72,6 +72,10 @@
             <div id="queueItems">
               <p class="queue-empty">No items in queue.</p>
             </div>
+            <label class="option-toggle" title="When on, a recipe's byproducts are treated as usable supply that reduces demand for those same items elsewhere in the plan.">
+              <input type="checkbox" id="byproductsAsSupply" onchange="toggleByproductsAsSupply()" />
+              Byproducts count as supply
+            </label>
             <button type="submit" id="calculateBtn" onclick="calculate()" disabled>
               &#9658;Calculate All
             </button>
