@@ -10,6 +10,7 @@ This project runs entirely client‑side (HTML, CSS, JavaScript) — no backend,
 * **Recipe variants** — define multiple crafting methods for the same item; the calculator uses your preferred variant
 * **Material categories** — group interchangeable materials (e.g. "Refined Metal" → Copper, Aluminum…) and pick which one to use **per recipe** (build one thing from Copper and another from Aluminum, both drawing on the same category)
 * **Multi-item queue** — queue up several items at once; the calculator finds the globally optimal batch counts across all of them
+* **On-hand inventory** — list materials you already have; they're subtracted from what you need, and anything left over shows as **surplus**
 * Totals view for base materials (globally correct — no per-item batch overcounting)
 * **Combined Crafting** section showing global batch stats for intermediate materials (batches run, produced, leftover, byproducts)
 * Tree breakdown view for nested recipes

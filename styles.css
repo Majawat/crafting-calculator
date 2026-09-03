@@ -725,6 +725,34 @@ ul.tree-list ul.tree-list {
   color: var(--ink-3);
 }
 
+/* ======= On-hand inventory ======= */
+.card-hint {
+  font-size: 0.8rem;
+  color: var(--ink-3);
+  margin: 0 0 0.5rem;
+}
+
+.onhand-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.25rem 0;
+}
+
+.onhand-row input {
+  flex: 1;
+}
+
+/* Surplus tiles — dashed to read as "left over" */
+.surplus-tile {
+  background: var(--paper-2);
+  border-style: dashed;
+}
+
+.surplus-tile .material-qty {
+  color: var(--accent-2);
+}
+
 /* ======= Responsive ======= */
 @media (max-width: 768px) {
   .calculate-layout {

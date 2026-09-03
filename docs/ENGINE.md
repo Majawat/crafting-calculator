@@ -123,10 +123,10 @@ rewrite.
 
 ## 7. Roadmap
 
-- **Phase 1** *(this)* — topo net-flow solver (batch mode), per-`(recipe,
+- **Phase 1** *(done)* — topo net-flow solver (batch mode), per-`(recipe,
   category)` material assignments, `onHand`/`yieldMultiplier` in the engine.
   `byproductsAsSupply` off by default (parity + the batch-rounding fix).
-- **Phase 2** — inventory UI (`onHand` input) + surplus display.
+- **Phase 2** *(this)* — inventory UI (`onHand` input) + surplus display.
 - **Phase 3** — byproducts-as-supply + fixpoint + per-pack flag.
 - **Phase 4** — graph/DAG view + efficiency exposure.
 - **Phase 5** *(optional)* — rate mode; then alternate-recipe optimization (LP).
