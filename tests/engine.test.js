@@ -9,8 +9,12 @@ function ctx(allRecipes, extra = {}) {
   return {
     allRecipes,
     categories: extra.categories || {},
+    materialChoice: extra.materialChoice || {},
     materialPreferences: extra.materialPreferences || {},
     variantPreferences: extra.variantPreferences || {},
+    onHand: extra.onHand || {},
+    mode: extra.mode || "batch",
+    byproductsAsSupply: extra.byproductsAsSupply || false,
   };
 }
 
@@ -110,9 +114,11 @@ test("computeGlobalNeeds reproduces the README Bridge Anchor example", () => {
   assert.equal(intermediateBatches.Polymers.leftover, 0);
 });
 
-test("computeGlobalNeeds pools shared intermediate demand into one batch count", () => {
+test("computeGlobalNeeds pools shared intermediate demand before rounding", () => {
   // Gadget needs 3 Widget, Gizmo needs 2 Widget; a Widget batch makes 5.
-  // Pooled demand is 5, so the reported Widget batch count is 1 (not 1+1=2).
+  // Pooled demand is 5, so exactly ONE Widget batch runs, consuming 1 Scrap.
+  // (Per-branch rounding would wrongly make 2 batches and consume 2 Scrap —
+  // the topological pass pools first, then rounds once, so both agree.)
   const recipes = {
     Gadget: { produces: 1, ingredients: { Widget: 3 } },
     Gizmo: { produces: 1, ingredients: { Widget: 2 } },
@@ -125,15 +131,118 @@ test("computeGlobalNeeds pools shared intermediate demand into one batch count",
     ],
     ctx(recipes),
   );
-  assert.equal(intermediateBatches.Widget.crafts, 1); // pooled batch count
+  assert.equal(intermediateBatches.Widget.crafts, 1);
+  assert.equal(leafTotals.Scrap, 1); // consistent with a single pooled batch
+});
 
-  // KNOWN LIMITATION (pins current behavior): the reported Widget batch count is
-  // 1, but leaf demand below Widget is rounded per-branch during the descent
-  // (ceil(3/5)=1 batch from Gadget + ceil(2/5)=1 from Gizmo), so Scrap comes out
-  // as 2 rather than the 1 a single pooled batch would consume. The batch count
-  // and the leaf total are therefore mutually inconsistent. Fixing this means
-  // propagating fractional demand and batching once in topological order.
-  assert.equal(leafTotals.Scrap, 2);
+test("onHand inventory offsets demand at leaves and intermediates", () => {
+  const recipes = {
+    Ring: { produces: 1, ingredients: { Ingot: 5 } },
+    Ingot: { produces: 1, ingredients: { Ore: 2 } },
+  };
+  // Have 2 Ingot and 3 Ore already → need 3 more Ingot → 6 Ore, minus 3 on hand = 3.
+  const { leafTotals, intermediateBatches } = engine.solve(
+    [{ item: "Ring", qty: 1 }],
+    ctx(recipes, { onHand: { Ingot: 2, Ore: 3 } }),
+  );
+  assert.equal(intermediateBatches.Ingot.crafts, 3);
+  assert.equal(leafTotals.Ore, 3);
+});
+
+test("onHand larger than demand yields zero need and reports surplus", () => {
+  const recipes = { Plate: { produces: 1, ingredients: { Iron: 2 } } };
+  const { leafTotals, surplus } = engine.solve(
+    [{ item: "Plate", qty: 1 }],
+    ctx(recipes, { onHand: { Iron: 10 } }),
+  );
+  assert.ok(!("Iron" in leafTotals)); // nothing to buy
+  assert.equal(surplus.Iron, 8); // 10 on hand − 2 consumed
+});
+
+test("yieldMultiplier scales effective output (efficiency / expected value)", () => {
+  const recipes = {
+    Ore: {
+      variants: [{ name: "Default", produces: 1, yieldMultiplier: 2, ingredients: { Rock: 1 } }],
+    },
+  };
+  // Each run yields 2 (e.g. a +100% bonus), so 10 demand → 5 runs → 5 Rock.
+  const { leafTotals, intermediateBatches } = engine.solve([{ item: "Ore", qty: 10 }], ctx(recipes));
+  assert.equal(intermediateBatches.Ore === undefined, true); // Ore is the queue item
+  const { batches } = engine.solve([{ item: "Ore", qty: 10 }], ctx(recipes));
+  assert.equal(batches.Ore.crafts, 5);
+  assert.equal(leafTotals.Rock, 5);
+});
+
+test("byproductsAsSupply offsets demand for a co-product and reports surplus", () => {
+  // Refining oil yields Petroleum + Gas; Fuel needs Gas. Making Petroleum
+  // supplies Gas that offsets Fuel's Gas demand.
+  const recipes = {
+    Petroleum: {
+      variants: [{ name: "Default", produces: 1, ingredients: { Oil: 1 }, byproducts: { Gas: 2 } }],
+    },
+    Fuel: { produces: 1, ingredients: { Gas: 2 } },
+  };
+  // Queue 1 Petroleum (→ 2 Gas byproduct) and 1 Fuel (needs 2 Gas).
+  // With supply on, the Gas byproduct exactly covers Fuel → no Gas crafted/raw.
+  const withSupply = engine.solve(
+    [
+      { item: "Petroleum", qty: 1 },
+      { item: "Fuel", qty: 1 },
+    ],
+    ctx(recipes, { byproductsAsSupply: true }),
+  );
+  assert.ok(!("Gas" in withSupply.leafTotals)); // covered by byproduct
+  const without = engine.solve(
+    [
+      { item: "Petroleum", qty: 1 },
+      { item: "Fuel", qty: 1 },
+    ],
+    ctx(recipes, { byproductsAsSupply: false }),
+  );
+  assert.equal(without.leafTotals.Gas, 2); // must buy Gas when supply is ignored
+});
+
+test("resolveMaterial keys material choice per consuming recipe", () => {
+  const c = ctx(
+    { Frame: { produces: 1, ingredients: { Metal: 1 } }, Plate: { produces: 1, ingredients: { Metal: 1 } } },
+    {
+      categories: { Metal: ["Copper", "Iron", "Gold"] },
+      materialPreferences: { Metal: "Copper" }, // global fallback
+      materialChoice: { "Frame|Metal": "Gold" }, // per-recipe override
+    },
+  );
+  assert.equal(engine.resolveMaterial("Frame", "Metal", c), "Gold"); // keyed override
+  assert.equal(engine.resolveMaterial("Plate", "Metal", c), "Copper"); // falls back to global
+  assert.equal(engine.resolveMaterial("Frame", "NotACategory", c), "NotACategory");
+});
+
+test("per-recipe material choice routes demand to different concrete materials", () => {
+  const recipes = {
+    Frame: { produces: 1, ingredients: { Metal: 4 } },
+    Plate: { produces: 1, ingredients: { Metal: 3 } },
+  };
+  const { leafTotals } = engine.solve(
+    [
+      { item: "Frame", qty: 1 },
+      { item: "Plate", qty: 1 },
+    ],
+    ctx(recipes, {
+      categories: { Metal: ["Copper", "Iron"] },
+      materialChoice: { "Frame|Metal": "Gold", "Plate|Metal": "Iron" },
+    }),
+  );
+  assert.equal(leafTotals.Gold, 4); // Frame's metal
+  assert.equal(leafTotals.Iron, 3); // Plate's metal — pooled independently
+});
+
+test("topoOrder throws on a cyclic graph", () => {
+  const recipes = {
+    A: { produces: 1, ingredients: { B: 1 } },
+    B: { produces: 1, ingredients: { A: 1 } },
+  };
+  const c = ctx(recipes);
+  const concrete = engine.buildConcreteRecipes([{ item: "A", qty: 1 }], c);
+  assert.throws(() => engine.topoOrder(concrete), /cycle/i);
 });
 
 test("computeGlobalNeeds keeps queue items out of intermediateBatches", () => {
