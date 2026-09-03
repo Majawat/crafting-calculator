@@ -1,0 +1,14 @@
+{
+  "name": "crafting-calculator",
+  "version": "1.0.0",
+  "description": "A lightweight, generic client-side crafting calculator for any game or project.",
+  "license": "MIT",
+  "homepage": "https://majawat.github.io/crafting-calculator/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Majawat/crafting-calculator.git"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

@@ -8,11 +8,18 @@ This is a pure client-side crafting calculator application built with vanilla HT
 
 ## Architecture
 
-The application follows a simple three-file structure:
+The application follows a simple file structure:
 
 - **index.html**: Single-page application with forms for adding recipes and calculating crafts
-- **app.js**: All application logic including recipe storage, calculation engine, and DOM manipulation
+- **engine.js**: Pure calculation core (recipe expansion, global batch math, variant/category/circular-dependency helpers). No DOM or browser APIs — all state is passed in via a `ctx` object. Exposed as `window.CraftEngine` in the browser and `module.exports` in Node, so it is unit tested directly.
+- **app.js**: UI, recipe storage, and DOM manipulation. Delegates all math to `CraftEngine` via thin wrappers (`expand`, `computeGlobalNeeds`, `normalizeRecipe`, etc.) that supply the app's live state through `engineCtx()`.
 - **styles.css**: Styling with card-based layout and responsive design
+- **tests/engine.test.js**: Node built-in test-runner suite for `engine.js` (`node --test`). No dependencies.
+- **recipes/index.json**: Manifest listing the game recipe packs; the Setup-tab dropdown is populated from it at load time.
+
+### Testing
+
+Run `node --test` (or `npm test`). The engine is pure, so tests need no DOM/build. `app.js` is intentionally thin over the engine; keep new calculation logic in `engine.js` so it stays testable.
 
 ### Core Data Structures
 
@@ -33,21 +40,29 @@ Recipes can have multiple variants (e.g., different crafting methods for the sam
 
 ### Key Functions
 
-- `expand(item, qty)`: Recursively expands recipes into a tree structure using selected variants
-- `flatten(tree)`: Converts tree to flat totals for base materials
-- `calculate()`: Main entry point that orchestrates expansion and rendering
+Engine (`engine.js`, pure):
+
+- `expand(item, qty, ctx)`: Recursively expands a recipe into a tree using selected variants
+- `computeGlobalNeeds(queue, ctx)`: Global batch calculation across all queued items (leaf totals, byproducts, buildings, intermediate batches, time)
 - `normalizeRecipe(recipe)`: Converts single recipes to variant format for consistent handling
-- `getSelectedVariant(name, recipe)`: Returns the user's preferred variant or the first one
+- `getSelectedVariant(name, recipe, variantPreferences)`: Returns the user's preferred variant or the first one
+- `getSelectedMaterial(cat, categories, materialPreferences)`: Resolves a category ingredient to the chosen material
+- `hasCircularDependency(item, recipeSet)`: Guards against cyclic recipes
+
+App (`app.js`, DOM):
+
+- `calculate()`: Main entry point that orchestrates expansion and rendering
+- `getAllRecipes()`: Merges game + custom recipes (conflict-suffixing), feeding `engineCtx()`
 - Recipe management: `addRecipe()`, `updateCraftDropdown()`, `updateVariantSelector()`, `updateIngredientDatalist()`
 
 ## Development
 
 Since this is a static client-side application:
 
-- **Testing**: Open `index.html` directly in a browser
+- **Testing**: `node --test` (or `npm test`) runs the engine unit tests; open `index.html` directly in a browser for manual UI testing
 - **No build process**: Files can be edited and refreshed immediately
-- **No dependencies**: Pure vanilla JavaScript, no package.json or build tools
-- **Deployment**: Can be hosted on any static hosting service (GitHub Pages, Netlify, etc.)
+- **No runtime dependencies**: Pure vanilla JavaScript; `package.json` only declares the built-in test runner script (no `npm install` needed)
+- **Deployment**: Can be hosted on any static hosting service (GitHub Pages, Netlify, etc.). Only the static assets are served; `tests/`, `package.json`, and `.github/` are ignored by the site.
 
 ## Data Persistence
 

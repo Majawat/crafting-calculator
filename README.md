@@ -59,6 +59,21 @@ Recipe packs live in the `recipes/` directory as `.json` files. Format:
 
 Recipes can also use a `variants` array for items with multiple crafting methods. Use **Export My Recipes** on the Setup tab to create a pack file from your custom recipes — the downloaded file can be dropped into `recipes/` and loaded via the UI.
 
+### Registering a pack
+
+The game-pack dropdown is populated at load time from `recipes/index.json` — no HTML edits needed. To add a pack, drop its `<id>.json` in `recipes/` and add an entry:
+
+```json
+{
+  "packs": [
+    { "id": "the-alters", "name": "The Alters" },
+    { "id": "your-pack-id", "name": "Your Pack Name" }
+  ]
+}
+```
+
+The `id` must match the filename (without `.json`); the `name` is what appears in the dropdown.
+
 ## Example Recipe (The Alters)
 
 * **Polymers Package** → produces 10 from 20 Organics + 20 Minerals
@@ -66,8 +81,23 @@ Recipes can also use a `variants` array for items with multiple crafting methods
 
 Crafting 4 Bridge Anchors → requires **80 Metals, 160 Organics, 160 Minerals**.
 
+## Development
+
+The calculation core lives in `engine.js` as a dependency-free module (no DOM),
+so it can be unit tested outside the browser. `app.js` handles all UI/DOM work
+and delegates its math to the engine.
+
+Run the test suite (requires Node 18+, no `npm install` needed — uses Node's
+built-in test runner):
+
+```bash
+node --test
+# or
+npm test
+```
+
 ## Tech
 
 * Pure HTML, CSS, and JavaScript
-* No dependencies
+* No runtime dependencies
 * Works in any modern browser

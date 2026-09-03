@@ -22,11 +22,14 @@ const materialPreferences = {}; // { categoryName: specificMaterial }
 let queue = []; // { item: string, qty: number }[]
 
 // ======= Load recipes from LocalStorage on page load =======
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
   const savedRecipes = localStorage.getItem("recipes");
   if (savedRecipes) {
     Object.assign(recipes, JSON.parse(savedRecipes));
   }
+  // Populate the game-pack dropdown from the manifest before restoring the
+  // saved selection, so the saved <option> exists when we set its value.
+  await populatePackDropdown();
   const savedGame = localStorage.getItem("currentGame");
   if (savedGame) {
     currentGame = savedGame;
@@ -321,78 +324,38 @@ function updateStoredCategoriesList() {
   container.innerHTML = html;
 }
 
-// ======= Material Preference Helpers =======
-function getSelectedMaterial(categoryName) {
-  return materialPreferences[categoryName] || categories[categoryName]?.[0] || categoryName;
+// ======= Engine Delegation =======
+// The pure calculation core lives in engine.js (CraftEngine) so it can be unit
+// tested outside the browser. The wrappers below feed it the app's live state.
+function engineCtx() {
+  return {
+    allRecipes: getAllRecipes(),
+    categories,
+    materialPreferences,
+    variantPreferences,
+  };
 }
 
+const normalizeRecipe = (recipe) => CraftEngine.normalizeRecipe(recipe);
+const getSelectedVariant = (recipeName, recipe) =>
+  CraftEngine.getSelectedVariant(recipeName, recipe, variantPreferences);
+const getSelectedMaterial = (categoryName) =>
+  CraftEngine.getSelectedMaterial(categoryName, categories, materialPreferences);
+const hasCircularDependency = (itemName, recipeSet, visited) =>
+  CraftEngine.hasCircularDependency(itemName, recipeSet, visited);
+const expand = (item, qty) => CraftEngine.expand(item, qty, engineCtx());
+const computeGlobalNeeds = (queue) => CraftEngine.computeGlobalNeeds(queue, engineCtx());
+
+// ======= Material Preference Helpers =======
 function setMaterialPreference(categoryName, material) {
   materialPreferences[categoryName] = material;
   localStorage.setItem("materialPreferences", JSON.stringify(materialPreferences));
 }
 
 // ======= Recipe Variants Helpers =======
-// Normalize a recipe to always have variants array
-function normalizeRecipe(recipe) {
-  if (recipe.variants) {
-    return recipe; // Already in variants format
-  }
-  // Convert old format to variants format
-  return {
-    variants: [
-      {
-        name: "Default",
-        produces: recipe.produces,
-        byproducts: recipe.byproducts || {},
-        ingredients: recipe.ingredients,
-        building: recipe.building || null,
-        buildingCost: recipe.buildingCost || {},
-        metadata: recipe.metadata || {},
-      },
-    ],
-  };
-}
-
-// Get the selected variant for a recipe
-function getSelectedVariant(recipeName, recipe) {
-  const normalized = normalizeRecipe(recipe);
-  const preferredIndex = variantPreferences[recipeName] || 0;
-  // Ensure index is valid
-  const index = Math.min(preferredIndex, normalized.variants.length - 1);
-  return normalized.variants[index];
-}
-
-// Set the selected variant for a recipe
 function setVariantPreference(recipeName, variantIndex) {
   variantPreferences[recipeName] = variantIndex;
   localStorage.setItem("variantPreferences", JSON.stringify(variantPreferences));
-}
-
-// ======= Circular Dependency Detection =======
-function hasCircularDependency(itemName, recipeSet, visited = new Set()) {
-  if (visited.has(itemName)) {
-    return true; // Found a cycle
-  }
-
-  const recipe = recipeSet[itemName];
-  if (!recipe) {
-    return false; // Base ingredient, no cycle
-  }
-
-  visited.add(itemName);
-
-  // Check all variants for circular dependencies
-  const normalized = normalizeRecipe(recipe);
-  for (let variant of normalized.variants) {
-    for (let ingredient in variant.ingredients) {
-      if (hasCircularDependency(ingredient, recipeSet, visited)) {
-        return true;
-      }
-    }
-  }
-
-  visited.delete(itemName);
-  return false;
 }
 
 // ======= Add Recipe =======
@@ -922,6 +885,31 @@ function editRecipe(name, variantIdx) {
   document.getElementById("addRecipeCard").scrollIntoView({ behavior: "smooth" });
 }
 
+// ======= Populate Game Pack Dropdown from Manifest =======
+// Recipe packs are listed in recipes/index.json so new packs can be added by
+// dropping a JSON file and registering it there — no HTML edits required.
+async function populatePackDropdown() {
+  const sel = document.getElementById("gameSelect");
+  if (!sel) return;
+  try {
+    const res = await fetch("recipes/index.json");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const packs = Array.isArray(data) ? data : data.packs || [];
+    // Preserve the default "Custom Recipes Only" option; append packs after it.
+    const existing = new Set(Array.from(sel.options).map((o) => o.value));
+    for (const pack of packs) {
+      if (!pack || !pack.id || existing.has(pack.id)) continue;
+      const opt = document.createElement("option");
+      opt.value = pack.id;
+      opt.textContent = pack.name || pack.id;
+      sel.appendChild(opt);
+    }
+  } catch (error) {
+    console.error("Failed to load recipe pack manifest:", error);
+  }
+}
+
 // ======= Load Game Recipes =======
 async function loadGameRecipes() {
   const gameSelect = document.getElementById("gameSelect");
@@ -1132,86 +1120,6 @@ function renderQueue() {
   container.innerHTML = html;
 }
 
-// ======= Global Needs Calculation (fractional batch arithmetic) =======
-// Propagates exact fractional demands through the recipe tree so that
-// batch rounding only happens once at the leaf level, across all queue
-// items combined. This prevents overcounting when multiple items share
-// the same intermediate recipe.
-function computeGlobalNeeds(queue) {
-  const allRecipes = getAllRecipes();
-  const exactDemands = {};
-
-  function collectExactDemands(item, qty) {
-    exactDemands[item] = (exactDemands[item] || 0) + qty;
-    const recipe = allRecipes[item];
-    if (!recipe) return;
-    const variant = getSelectedVariant(item, recipe);
-    const exactBatches = Math.ceil(qty / variant.produces);
-    for (const [ing, amount] of Object.entries(variant.ingredients)) {
-      let ingName = ing;
-      if (categories[ing] && !allRecipes[ing]) {
-        ingName = getSelectedMaterial(ing);
-      }
-      collectExactDemands(ingName, exactBatches * amount);
-    }
-  }
-
-  for (const { item, qty } of queue) {
-    collectExactDemands(item, qty);
-  }
-
-  const leafTotals = {};
-  const allBatches = {};
-  const queueItemSet = new Set(queue.map((q) => q.item));
-
-  for (const [mat, totalDemand] of Object.entries(exactDemands)) {
-    const recipe = allRecipes[mat];
-    if (!recipe) {
-      leafTotals[mat] = (leafTotals[mat] || 0) + Math.ceil(totalDemand);
-    } else {
-      const variant = getSelectedVariant(mat, recipe);
-      const crafts = Math.ceil(totalDemand / variant.produces);
-      const produced = crafts * variant.produces;
-      const scaledByproducts = {};
-      for (const [bp, amt] of Object.entries(variant.byproducts || {})) {
-        scaledByproducts[bp] = amt * crafts;
-      }
-      allBatches[mat] = {
-        requestedTotal: totalDemand,
-        crafts,
-        produces: variant.produces,
-        produced,
-        leftover: produced - Math.ceil(totalDemand),
-        byproducts: scaledByproducts,
-        building: variant.building || null,
-        buildingCost: variant.buildingCost || {},
-        craftingTime: (variant.metadata?.craftingTime || 0) * crafts,
-        isQueueItem: queueItemSet.has(mat),
-      };
-    }
-  }
-
-  const byproductTotals = {};
-  const buildings = {};
-  let totalTime = 0;
-  const intermediateBatches = {};
-
-  for (const [mat, info] of Object.entries(allBatches)) {
-    for (const [bp, amt] of Object.entries(info.byproducts)) {
-      byproductTotals[bp] = (byproductTotals[bp] || 0) + amt;
-    }
-    if (info.building && !buildings[info.building]) {
-      buildings[info.building] = info.buildingCost;
-    }
-    totalTime += info.craftingTime;
-    if (!info.isQueueItem) {
-      intermediateBatches[mat] = info;
-    }
-  }
-
-  return { leafTotals, byproductTotals, buildings, totalTime, intermediateBatches };
-}
-
 // ======= Calculate =======
 function calculate() {
   if (queue.length === 0) return;
@@ -1341,107 +1249,6 @@ function calculate() {
   html += `</div></details>`;
 
   resultsDiv.innerHTML = html;
-}
-
-// ======= Expand Recipes Recursively =======
-function expand(item, qty) {
-  const allRecipes = getAllRecipes();
-  if (!allRecipes[item]) {
-    return {
-      name: item,
-      qty: qty,
-      requestedQty: qty,
-      crafts: 0,
-      produces: 1,
-      byproducts: {},
-      building: null,
-      buildingCost: {},
-      children: [],
-      craftingTime: 0,
-      variantName: null,
-    };
-  }
-
-  const recipe = allRecipes[item];
-  const variant = getSelectedVariant(item, recipe);
-  const { produces, ingredients, metadata, building, buildingCost } = variant;
-  const crafts = Math.ceil(qty / produces);
-  const actualQty = crafts * produces;
-
-  // Get crafting time from metadata (defaults to 0 if not specified)
-  const baseTime = metadata?.craftingTime || 0;
-  const totalCraftingTime = baseTime * crafts;
-
-  // Scale byproducts by number of crafting runs
-  const scaledByproducts = {};
-  for (let [bpItem, bpAmt] of Object.entries(variant.byproducts || {})) {
-    scaledByproducts[bpItem] = bpAmt * crafts;
-  }
-
-  const children = [];
-  for (let ing in ingredients) {
-    const need = ingredients[ing] * crafts;
-    let ingredientName = ing;
-    if (categories[ing] && !allRecipes[ing]) {
-      // Category ingredient: resolve to the selected specific material
-      ingredientName = getSelectedMaterial(ing);
-    }
-    children.push(expand(ingredientName, need));
-  }
-
-  return {
-    name: item,
-    qty: actualQty,
-    requestedQty: qty,
-    crafts: crafts,
-    produces: produces,
-    byproducts: scaledByproducts,
-    building: building || null,
-    buildingCost: buildingCost || {},
-    children,
-    craftingTime: totalCraftingTime,
-    variantName: variant.name,
-  };
-}
-
-// ======= Flatten Tree to Totals =======
-function flatten(node, totals = {}) {
-  if (node.children.length === 0) {
-    totals[node.name] = (totals[node.name] || 0) + node.qty;
-  } else {
-    node.children.forEach((child) => flatten(child, totals));
-  }
-  return totals;
-}
-
-// ======= Flatten Byproducts Across All Nodes =======
-function flattenByproducts(node, totals = {}) {
-  for (let [item, amt] of Object.entries(node.byproducts || {})) {
-    totals[item] = (totals[item] || 0) + amt;
-  }
-  node.children.forEach((child) => flattenByproducts(child, totals));
-  return totals;
-}
-
-// ======= Collect Unique Buildings Across Tree =======
-function collectBuildings(node, buildings = {}) {
-  if (node.building && !buildings[node.building]) {
-    buildings[node.building] = node.buildingCost || {};
-  }
-  node.children.forEach((child) => collectBuildings(child, buildings));
-  return buildings;
-}
-
-// ======= Calculate Total Time =======
-function calculateTotalTime(node) {
-  let totalTime = node.craftingTime || 0;
-
-  // Add time from children (this assumes sequential crafting)
-  for (let child of node.children) {
-    totalTime += calculateTotalTime(child);
-  }
-
-  return totalTime;
 }
 
 // ======= Format Time Display =======
