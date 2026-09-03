@@ -109,7 +109,10 @@ Crafting 4 Bridge Anchors → requires **80 Metals, 160 Organics, 160 Minerals**
 The calculation core lives in `engine.js` as a dependency-free module (no DOM),
 so it can be unit tested outside the browser. `app.js` handles all UI/DOM work
 and delegates its math to the engine. It solves a topological net-flow pass over
-the recipe graph — see [`docs/ENGINE.md`](docs/ENGINE.md) for the model.
+the recipe graph.
+
+- [`docs/HANDOFF.md`](docs/HANDOFF.md) — project state, design decisions, roadmap, gotchas (**start here**)
+- [`docs/ENGINE.md`](docs/ENGINE.md) — the calculation model from first principles
 
 Run the test suite (requires Node 18+, no `npm install` needed — uses Node's
 built-in test runner):
